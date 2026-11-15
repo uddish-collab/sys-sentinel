@@ -1,6 +1,8 @@
+
 import time
 import platform
 import socket
+import os
 from datetime import datetime
 
 import psutil
@@ -37,6 +39,8 @@ def get_uptime():
 
 
 def get_bar(value):
+    value = max(0, min(100, value))
+
     filled = int(value / 5)
     empty = 20 - filled
 
@@ -63,9 +67,11 @@ def get_status(value, limit):
 
 def get_system_info():
 
-    cpu = psutil.cpu_percent(interval=0.5)
+    cpu = psutil.cpu_percent(interval=None)
     ram = psutil.virtual_memory()
-    disk = psutil.disk_usage("C:\\")
+
+    disk_path = os.path.abspath(os.sep)
+    disk = psutil.disk_usage(disk_path)
 
     battery = psutil.sensors_battery()
 
@@ -117,7 +123,7 @@ def create_dashboard(data):
     resources = [
         ("CPU", data["cpu"], CPU_WARNING),
         ("MEMORY", data["ram"], RAM_WARNING),
-        ("DISK (C:)", data["disk"], DISK_WARNING),
+        ("DISK", data["disk"], DISK_WARNING),
     ]
 
     for name, value, limit in resources:
@@ -238,6 +244,9 @@ def main():
         )
     )
 
+    # Initialize CPU measurement before the first reading
+    psutil.cpu_percent(interval=None)
+
     try:
         with Live(
             create_dashboard(get_system_info()),
@@ -247,9 +256,10 @@ def main():
         ) as live:
 
             while True:
+                time.sleep(REFRESH_RATE)
+
                 data = get_system_info()
                 live.update(create_dashboard(data))
-                time.sleep(REFRESH_RATE)
 
     except KeyboardInterrupt:
         console.print(
