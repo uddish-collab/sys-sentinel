@@ -1,0 +1,2 @@
+# Development & Build dependencies for SYS-SENTINEL
+pyinstaller>=6.0.0
