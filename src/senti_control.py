@@ -37,7 +37,7 @@ from senti_state import (
     MetricHistory,
 )
 from senti_graphs import LineGraph
-from senti_settings import SentiSettings, DEFAULT_COLORS
+from senti_settings import SentiSettings, DEFAULT_COLORS, PRESET_THEMES
 from senti_mascot import SentiMascot
 from senti_widgets import (
     DARK_THEME_QSS,
@@ -69,6 +69,7 @@ class SentiControlWindow(QWidget):
 
         # Smooth window opacity
         self._opacity_effect = QGraphicsOpacityEffect(self)
+        self._opacity_effect.setOpacity(1.0)
         self.setGraphicsEffect(self._opacity_effect)
         self._fade_anim = QPropertyAnimation(self._opacity_effect, b"opacity", self)
         self._fade_anim.setDuration(180)
@@ -196,6 +197,28 @@ class SentiControlWindow(QWidget):
         # Left Column: Color pickers + Sound toggle
         left_col = QVBoxLayout()
         left_col.setSpacing(10)
+
+        theme_title = QLabel("PRESET THEMES")
+        theme_title.setStyleSheet("color: #00e5ff; font-size: 11px; font-weight: 700; letter-spacing: 1px;")
+        left_col.addWidget(theme_title)
+
+        theme_layout = QGridLayout()
+        theme_layout.setSpacing(6)
+        col_idx = 0
+        row_idx = 0
+        for theme_name in PRESET_THEMES:
+            t_btn = QPushButton(theme_name)
+            t_btn.setProperty("class", "actionButton")
+            t_btn.setStyleSheet("padding: 5px 8px; font-size: 11px; text-align: center;")
+            t_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+            t_btn.clicked.connect(lambda checked=False, tn=theme_name: self._apply_preset_theme(tn))
+            theme_layout.addWidget(t_btn, row_idx, col_idx)
+            col_idx += 1
+            if col_idx > 1:
+                col_idx = 0
+                row_idx += 1
+        left_col.addLayout(theme_layout)
+        left_col.addSpacing(10)
 
         color_title = QLabel("PALETTE CUSTOMIZATION")
         color_title.setStyleSheet("color: #00e5ff; font-size: 11px; font-weight: 700; letter-spacing: 1px;")
@@ -370,6 +393,14 @@ class SentiControlWindow(QWidget):
                 elif name == "eyes":
                     self.graph_ram.set_line_color(selected)
                 self.colors_changed.emit()
+
+    def _apply_preset_theme(self, theme_name: str):
+        self.settings.apply_preset_theme(theme_name)
+        self._refresh_color_swatches()
+        self._update_preview_mascot_palette()
+        self.graph_cpu.set_line_color(self.settings.get_color("glow"))
+        self.graph_ram.set_line_color(self.settings.get_color("eyes"))
+        self.colors_changed.emit()
 
     def _reset_colors(self):
         self.settings.reset_colors()

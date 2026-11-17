@@ -12,6 +12,39 @@ DEFAULT_COLORS: Dict[str, str] = {
     "glow": "#00e5ff",       # Electric cyan
 }
 
+PRESET_THEMES: Dict[str, Dict[str, str]] = {
+    "Cyberpunk Cyan": {
+        "body": "#f4f1ea",
+        "details": "#14213d",
+        "eyes": "#00e5ff",
+        "glow": "#00e5ff",
+    },
+    "Stealth Obsidian": {
+        "body": "#181b22",
+        "details": "#07080a",
+        "eyes": "#00e5ff",
+        "glow": "#00e5ff",
+    },
+    "Matrix Emerald": {
+        "body": "#121a14",
+        "details": "#060e08",
+        "eyes": "#22c55e",
+        "glow": "#10b981",
+    },
+    "Solar Amber": {
+        "body": "#201712",
+        "details": "#0c0805",
+        "eyes": "#f5a524",
+        "glow": "#ff7a00",
+    },
+    "Synthwave Neon": {
+        "body": "#1a1226",
+        "details": "#0c0614",
+        "eyes": "#f43f5e",
+        "glow": "#a855f7",
+    },
+}
+
 
 class SentiSettings:
     """Encapsulates QSettings for SYS-SENTINEL."""
@@ -29,6 +62,13 @@ class SentiSettings:
     def reset_colors(self):
         for key, val in DEFAULT_COLORS.items():
             self._settings.setValue(f"colors/{key}", val)
+
+    def apply_preset_theme(self, theme_name: str) -> bool:
+        if theme_name in PRESET_THEMES:
+            for key, val in PRESET_THEMES[theme_name].items():
+                self._settings.setValue(f"colors/{key}", val)
+            return True
+        return False
 
     def is_sound_enabled(self) -> bool:
         val = self._settings.value("sound/enabled", False)

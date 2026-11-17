@@ -136,6 +136,7 @@ class CompanionWindow(QWidget):
 
         # Opacity animation for hide/show
         self._opacity_effect = QGraphicsOpacityEffect(self)
+        self._opacity_effect.setOpacity(1.0)
         self.setGraphicsEffect(self._opacity_effect)
         self._fade_anim = QPropertyAnimation(self._opacity_effect, b"opacity", self)
         self._fade_anim.setDuration(180)
@@ -585,12 +586,9 @@ class SentiApp:
             self.companion.resize(NORMAL_SIZE, NORMAL_SIZE)
             self.companion.move(curr_pos)
 
-        # Wave hand and play cute pop sound
-        self.companion.mascot.trigger_wave(1.8)
+        # Do NOT wave hand when dragged out
+        self.companion.mascot.stop_wave()
         self.play("pop")
-
-        # Show greeting message when dragged from island
-        self.trigger_greeting_popup()
 
     def return_to_island(self):
         """Triple-click on SENTI or hotkey: Senti glides to dock, plays attach, and pills cascade in."""

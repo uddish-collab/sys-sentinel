@@ -143,6 +143,13 @@ class SentiMascot(QWidget):
     def trigger_wave(self, duration_s: float = 2.2):
         self.trigger_greeting_wave(duration_s)
 
+    def stop_wave(self):
+        """Immediately stop any waving animation and tuck hand back down."""
+        self._target_wave_amount = 0.0
+        self._wave_amount = 0.0
+        self._wave_time_remaining = 0.0
+        self.update()
+
     # --- Mood Configurations ---
 
     def _apply_mood_targets(self):
@@ -332,23 +339,25 @@ class SentiMascot(QWidget):
         body_rect = QRectF(bx, by, bw, bh)
         corner_r = bw * 0.36
 
-        # 1. Radiant Outer Aura Glow (Visible cyan aura around character)
+        # 1. Radiant Outer Aura Glow (Dynamic theme glow)
         glow_radius = max(bw, bh) * 0.80
         glow_grad = QRadialGradient(cx, cy, glow_radius)
         glow_alpha = int(115 * pulse)
-        glow_grad.setColorAt(0.0, QColor(0, 229, 255, glow_alpha))
-        glow_grad.setColorAt(0.40, QColor(0, 229, 255, int(glow_alpha * 0.60)))
-        glow_grad.setColorAt(0.72, QColor(0, 229, 255, int(glow_alpha * 0.20)))
-        glow_grad.setColorAt(1.0, QColor(0, 229, 255, 0))
+        glow_grad.setColorAt(0.0, QColor(glow_c.red(), glow_c.green(), glow_c.blue(), glow_alpha))
+        glow_grad.setColorAt(0.40, QColor(glow_c.red(), glow_c.green(), glow_c.blue(), int(glow_alpha * 0.60)))
+        glow_grad.setColorAt(0.72, QColor(glow_c.red(), glow_c.green(), glow_c.blue(), int(glow_alpha * 0.20)))
+        glow_grad.setColorAt(1.0, QColor(glow_c.red(), glow_c.green(), glow_c.blue(), 0))
         p.setPen(Qt.PenStyle.NoPen)
         p.setBrush(glow_grad)
         p.drawEllipse(QPointF(cx, cy), glow_radius, glow_radius)
 
-        # 2. Ceramic Squircle Helmet
+        # 2. Dynamic Theme Helmet Shell
         shell_grad = QLinearGradient(bx, by, bx, by + bh)
-        shell_grad.setColorAt(0.0, QColor("#f6f7fa"))
-        shell_grad.setColorAt(1.0, QColor("#c8cbd4"))
-        p.setPen(QPen(QColor(255, 255, 255, 45), 1.0))
+        shell_grad.setColorAt(0.0, body_c)
+        bot_c = body_c.darker(118) if body_c.lightness() > 90 else body_c.lighter(130)
+        shell_grad.setColorAt(1.0, bot_c)
+        border_c = QColor(255, 255, 255, 45) if body_c.lightness() > 90 else QColor(255, 255, 255, 25)
+        p.setPen(QPen(border_c, 1.0))
         p.setBrush(shell_grad)
         p.drawRoundedRect(body_rect, corner_r, corner_r)
 
@@ -359,7 +368,7 @@ class SentiMascot(QWidget):
         p.setPen(QPen(QColor(255, 255, 255, 140), 1.2, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap))
         p.drawPath(spec_path)
 
-        # 3. Dark Tinted Obsidian Glass Visor
+        # 3. Solid Opaque Obsidian Visor (No glass sheen, deep dark matte)
         vw = bw * 0.76
         vh = bh * 0.48
         vx = cx - vw / 2.0
@@ -367,23 +376,9 @@ class SentiMascot(QWidget):
         visor_rect = QRectF(vx, vy, vw, vh)
         vr = vh / 2.0  # Fully rounded capsule pill
 
-        p.setPen(QPen(QColor(255, 255, 255, 30), 1.0))
-        p.setBrush(QColor("#0d0e12"))
+        p.setPen(QPen(QColor("#141720"), 1.0))
+        p.setBrush(QColor("#07080a"))
         p.drawRoundedRect(visor_rect, vr, vr)
-
-        # Glass sheen reflection on top half of visor
-        p.save()
-        visor_clip = QPainterPath()
-        visor_clip.addRoundedRect(visor_rect, vr, vr)
-        p.setClipPath(visor_clip)
-        sheen = QLinearGradient(vx, vy, vx + vw, vy + vh * 0.65)
-        sheen.setColorAt(0.0, QColor(255, 255, 255, 48))
-        sheen.setColorAt(0.48, QColor(255, 255, 255, 12))
-        sheen.setColorAt(0.50, QColor(255, 255, 255, 0))
-        p.setPen(Qt.PenStyle.NoPen)
-        p.setBrush(sheen)
-        p.drawRect(visor_rect)
-        p.restore()
 
         # 4. Glowing Eyes inside Visor
         self._paint_facial_features(p, cx, vy + vh * 0.5, vw, vh, eyes_c, pulse)
@@ -407,10 +402,10 @@ class SentiMascot(QWidget):
             p.setBrush(QColor("#f4f5f9"))
             p.drawRoundedRect(glove_rect, pw / 2.0, pw / 2.0)
 
-            # Cyan wrist micro-accent cuff
+            # Micro-accent cuff matching theme aura
             cuff_rect = QRectF(-pw * 0.42, ph * 0.25, pw * 0.84, max(2.0, ph * 0.15))
             p.setPen(Qt.PenStyle.NoPen)
-            p.setBrush(QColor("#00e5ff"))
+            p.setBrush(glow_c)
             p.drawRoundedRect(cuff_rect, 1.2, 1.2)
             p.restore()
 
@@ -512,20 +507,6 @@ class SentiMascot(QWidget):
         p.setBrush(inner_grad)
         p.drawEllipse(QPointF(cx, cy), inner_r, inner_r)
 
-        # Glass reflection sweep on orb face disc
-        p.save()
-        clip_path = QPainterPath()
-        clip_path.addEllipse(QPointF(cx, cy), inner_r, inner_r)
-        p.setClipPath(clip_path)
-
-        refl_grad = QLinearGradient(cx - inner_r, cy - inner_r, cx + inner_r * 0.5, cy + inner_r * 0.5)
-        refl_grad.setColorAt(0.0, QColor(255, 255, 255, 45))
-        refl_grad.setColorAt(0.5, QColor(255, 255, 255, 12))
-        refl_grad.setColorAt(0.52, QColor(255, 255, 255, 0))
-        p.setPen(Qt.PenStyle.NoPen)
-        p.setBrush(refl_grad)
-        p.drawRect(QRectF(cx - inner_r, cy - inner_r, inner_r * 2.0, inner_r * 2.0))
-        p.restore()
 
         # Orb Eyes
         blink_factor = 1.0

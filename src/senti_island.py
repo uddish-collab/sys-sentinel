@@ -66,6 +66,7 @@ class GreetingBubbleWidget(QWidget):
         self.setFixedSize(190, 40)
 
         self._opacity_effect = QGraphicsOpacityEffect(self)
+        self._opacity_effect.setOpacity(1.0)
         self.setGraphicsEffect(self._opacity_effect)
         self._fade_anim = QPropertyAnimation(self._opacity_effect, b"opacity", self)
         self._fade_anim.setDuration(160)
@@ -136,11 +137,9 @@ class GreetingBubbleWidget(QWidget):
             path.lineTo(cx, h - 1.0)
             path.lineTo(cx + 5.0, bubble_h - 1.0)
 
-            bg_grad = QLinearGradient(0, 0, 0, h)
-            bg_grad.setColorAt(0.0, QColor(16, 20, 30, 248))
-            bg_grad.setColorAt(1.0, QColor(8, 10, 16, 252))
-            p.setBrush(bg_grad)
-            p.setPen(QPen(QColor(0, 229, 255, 120), 1.0))
+            # 100% Solid Opaque Dark Matte Bubble (No glass)
+            p.setBrush(QColor("#0d0e14"))
+            p.setPen(QPen(QColor("#1f2430"), 1.2))
             p.drawPath(path)
 
             p.setFont(QFont("Segoe UI Emoji", 9))
@@ -213,6 +212,7 @@ class TopIslandWindow(QWidget):
 
         # Opacity animation for hide/show
         self._opacity_effect = QGraphicsOpacityEffect(self)
+        self._opacity_effect.setOpacity(1.0)
         self.setGraphicsEffect(self._opacity_effect)
         self._fade_anim = QPropertyAnimation(self._opacity_effect, b"opacity", self)
         self._fade_anim.setDuration(160)
@@ -394,30 +394,30 @@ class TopIslandWindow(QWidget):
         w = self.width()
         h = self.height()
 
-        # 1. ENTIRE OUTER ISLAND CONTAINER (background #000, 22px corner radius, hairline border)
+        # 1. ENTIRE OUTER ISLAND CONTAINER (100% solid opaque dark matte, no glass)
         island_rect = QRectF(1.0, 1.0, w - 2.0, h - 2.0)
-        p.setPen(QPen(QColor(255, 255, 255, 28), 1.0))
-        p.setBrush(QColor("#000000"))
+        p.setPen(QPen(QColor("#20242c"), 1.2))
+        p.setBrush(QColor("#090a0d"))
         p.drawRoundedRect(island_rect, 22.0, 22.0)
 
-        # 2. Left Card (.left: w=322, h=116, radius=20, bg=#141518)
+        # 2. Left Card (100% solid opaque dark carbon matte)
         self._paint_card_1(p)
 
-        # 3. Right Card (.right: w=288, h=116, radius=20, bg=#141518)
+        # 3. Right Card (100% solid opaque dark carbon matte)
         self._paint_card_2(p)
 
     def _paint_card_1(self, p: QPainter):
-        """Paint Card 1 (Left: 322x116, radius 20, bg #141518, hairline border)."""
+        """Paint Card 1 (Left: 322x116, radius 20, solid dark matte #111317)."""
         c1_rect = QRectF(10.0, 10.0, 322.0, 116.0)
-        p.setPen(QPen(QColor(255, 255, 255, 9), 1.0))
-        p.setBrush(QColor("#141518"))
+        p.setPen(QPen(QColor("#1c2028"), 1.0))
+        p.setBrush(QColor("#111317"))
         p.drawRoundedRect(c1_rect, 20.0, 20.0)
 
     def _paint_card_2(self, p: QPainter):
-        """Paint Card 2 (Right: 288x116, radius 20, bg #141518, 2x2 pills)."""
+        """Paint Card 2 (Right: 288x116, radius 20, solid dark matte #111317)."""
         c2_rect = QRectF(342.0, 10.0, 288.0, 116.0)
-        p.setPen(QPen(QColor(255, 255, 255, 9), 1.0))
-        p.setBrush(QColor("#141518"))
+        p.setPen(QPen(QColor("#1c2028"), 1.0))
+        p.setBrush(QColor("#111317"))
         p.drawRoundedRect(c2_rect, 20.0, 20.0)
 
         # Telemetry values
@@ -460,7 +460,7 @@ class TopIslandWindow(QWidget):
         scale: float = 1.0,
         alpha: float = 1.0,
     ):
-        """Paint a single pill (.pill: height 28px, radius 999px, bg #0e0f11, border rgba(255,255,255,0.14))."""
+        """Paint a single pill (solid dark opaque #16181f, crisp border #252934)."""
         if scale < 0.01 or alpha < 0.01:
             return
 
@@ -474,8 +474,8 @@ class TopIslandWindow(QWidget):
             p.setOpacity(alpha)
 
         rect = QRectF(px, py, pw, ph)
-        p.setPen(QPen(QColor(255, 255, 255, 36), 1.0))
-        p.setBrush(QColor("#0e0f11"))
+        p.setPen(QPen(QColor("#252934"), 1.0))
+        p.setBrush(QColor("#16181f"))
         p.drawRoundedRect(rect, 14.0, 14.0)
 
         # Mini badge (.mini: 22x19, radius 6px)

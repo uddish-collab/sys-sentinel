@@ -139,6 +139,7 @@ class SentiHud(QWidget):
         # Opacity animation for smooth fade
         self._is_open: bool = False
         self._opacity_effect = QGraphicsOpacityEffect(self)
+        self._opacity_effect.setOpacity(1.0)
         self.setGraphicsEffect(self._opacity_effect)
         self._anim = QPropertyAnimation(self._opacity_effect, b"opacity", self)
         self._anim.setDuration(180)
