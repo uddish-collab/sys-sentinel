@@ -70,8 +70,8 @@ from senti_hotkeys import (
 # =====================================================================
 STARTUP_GREETINGS = list(DEFAULT_GREETINGS)
 
-NORMAL_SIZE = 58      # Matches Mochi botDiameter: 58 (consistent floating & docked size)
-DOCKED_SIZE = 58      # Senti nests perfectly inside Card 1 at (49, 63)
+NORMAL_SIZE = 80      # Senti companion size (leaves room for aura & waving glove)
+DOCKED_SIZE = 80      # Nests in Card 1 with center cx: 78, cy: 92
 ORB_SIZE = 44         # Minimalist orb form
 DRAG_THRESHOLD = 5
 
@@ -164,32 +164,26 @@ class CompanionWindow(QWidget):
             dy = pos.y() - cy
             return (dx * dx + dy * dy) <= (r * r)
 
-        # Mascot mode:
-        # 1. Main head: rounded rect/ellipse covering width*0.82 and height*0.72
+        # Option D: Visor Astronaut squircle helmet hit-testing
+        bw = w * 0.84
+        bh = h * 0.74
+        bx = cx - bw / 2.0
+        by = cy - bh / 2.0 + (h * 0.04)
+
+        # Check if inside bounding rectangle first
+        if not (bx <= pos.x() <= bx + bw and by <= pos.y() <= by + bh):
+            return False
+
+        # Elliptical / squircle corner falloff
+        rx = bw / 2.0
+        ry = bh / 2.0
         head_cx = cx
-        head_cy = cy + h * 0.05
-        rx = w * 0.42
-        ry = h * 0.38
+        head_cy = by + ry
         if rx > 0 and ry > 0:
-            if ((pos.x() - head_cx) ** 2 / (rx ** 2) + (pos.y() - head_cy) ** 2 / (ry ** 2)) <= 1.0:
-                return True
-
-        # 2. Antenna tip and stem: circle near top center
-        antenna_cx = cx
-        antenna_cy = h * 0.14
-        antenna_r = w * 0.16
-        if ((pos.x() - antenna_cx) ** 2 + (pos.y() - antenna_cy) ** 2) <= (antenna_r ** 2):
-            return True
-
-        # 3. Ear pods (left and right)
-        ear_r = w * 0.18
-        left_ear_cx = cx - rx * 0.88
-        right_ear_cx = cx + rx * 0.88
-        ear_cy = head_cy
-        if ((pos.x() - left_ear_cx) ** 2 + (pos.y() - ear_cy) ** 2) <= (ear_r ** 2):
-            return True
-        if ((pos.x() - right_ear_cx) ** 2 + (pos.y() - ear_cy) ** 2) <= (ear_r ** 2):
-            return True
+            norm_x = abs(pos.x() - head_cx) / rx
+            norm_y = abs(pos.y() - head_cy) / ry
+            # Squircle exponent 2.8 (softer than rect, rounder than circle)
+            return (norm_x ** 2.8 + norm_y ** 2.8) <= 1.0
 
         return False
 
@@ -481,11 +475,6 @@ class SentiApp:
         self.companion.is_docked = True
         self.settings.set_docked_state(True)
 
-        self.island.show()
-        dock_pos = self.island.get_dock_target_pos(self.companion.width())
-        self.companion.move(dock_pos)
-        self.companion.raise_()
-
         # 4. Create Compact HUD
         self.hud = SentiHud(on_open_control=None)
 
@@ -496,6 +485,9 @@ class SentiApp:
 
         # 5. System Tray Icon
         self._init_tray()
+
+        # Track previous mood to trigger audio transitions
+        self._prev_mood: str = "calm"
 
         # 6. Global Keyboard Shortcuts Manager
         self.hotkeys = GlobalHotKeyManager()
@@ -593,16 +585,19 @@ class SentiApp:
             self.companion.resize(NORMAL_SIZE, NORMAL_SIZE)
             self.companion.move(curr_pos)
 
+        # Wave hand and play cute pop sound
+        self.companion.mascot.trigger_wave(1.8)
+        self.play("pop")
+
         # Show greeting message when dragged from island
         self.trigger_greeting_popup()
 
     def return_to_island(self):
-        """Triple-click on SENTI or hotkey: plays cute chime, island reappears, and SENTI docks."""
-        self.play("dock")
+        """Triple-click on SENTI or hotkey: Senti glides to dock, plays attach, and pills cascade in."""
         self.companion.is_docked = True
         self.settings.set_docked_state(True)
 
-        # Black glass island fades back in
+        # Island fades back in
         self.island.fade_in()
 
         # If HUD is open, close it
@@ -613,8 +608,14 @@ class SentiApp:
         dock_pos = self.island.get_dock_target_pos(DOCKED_SIZE)
         target_geo = QRect(dock_pos.x(), dock_pos.y(), DOCKED_SIZE, DOCKED_SIZE)
 
-        # Smooth glide back into island center
-        self.companion.glide_to_rect(target_geo, duration=320, on_finished=self.companion.raise_)
+        def _on_re_dock():
+            self.companion.raise_()
+            self.companion.mascot.trigger_squish()
+            self.play("attach")
+            self.island.animate_pills_entrance(on_pill_pop=lambda: self.play("tick"))
+
+        # Smooth glide back into island Card 1
+        self.companion.glide_to_rect(target_geo, duration=350, on_finished=_on_re_dock)
 
     def _on_island_drag_moved(self, new_island_pos: QPoint):
         self.settings.set_island_pos(new_island_pos)
@@ -626,7 +627,7 @@ class SentiApp:
     def _on_manual_refresh(self):
         """Manual telemetry poll triggered from the island UI."""
         self.poll_telemetry()
-        self.play("click")
+        self.play("work")
 
     def toggle_sound(self):
         """Toggle interaction sounds on/off with audio feedback."""
@@ -672,6 +673,14 @@ class SentiApp:
             disk=info.get("disk"),
             temp=info.get("temperature_c"),
         )
+        # Audio transitions on mood change
+        if mood != self._prev_mood:
+            if mood in ("warning", "critical"):
+                self.play("annoyed")
+            elif self._prev_mood in ("warning", "critical") and mood == "calm":
+                self.play("approval")
+            self._prev_mood = mood
+
         if self.companion.is_docked:
             # Inside the island: SENTI stays in his default, calm cute form
             self.companion.set_system_mood("calm")
@@ -691,12 +700,44 @@ class SentiApp:
             self.control_win.update_graphs()
 
     def start(self):
-        self.companion.show()
-        if self.companion.is_docked:
-            self.companion.raise_()
-
         self.poll_telemetry()
         self.poll_timer.start()
+
+        if self.companion.is_docked:
+            # Dynamic entrance choreography matching Mochi:
+            # 1. Island appears
+            self.island.show()
+            self.island.raise_()
+
+            # 2. Senti appears directly centered in the island, radiant aura glowing, waves hello
+            start_x = self.island.x() + 320 - DOCKED_SIZE // 2
+            start_y = self.island.y() + 90 - DOCKED_SIZE // 2
+            self.companion.move(start_x, start_y)
+            self.companion.show()
+            self.companion.raise_()
+            self.companion.mascot.trigger_squish()
+            self.companion.mascot.trigger_wave(2.6)
+            self.play("greeting")
+
+            # 3. Senti glides smoothly into Card 1 nest after waving in center
+            def _glide_to_nest():
+                dock_pos = self.island.get_dock_target_pos(DOCKED_SIZE)
+                target_geo = QRect(dock_pos.x(), dock_pos.y(), DOCKED_SIZE, DOCKED_SIZE)
+
+                def _on_dock_landed():
+                    self.companion.raise_()
+                    self.companion.mascot.trigger_squish()
+                    self.play("attach")
+                    # 4. Card 2 metric pills cascade into view with spring pop transitions
+                    self.island.animate_pills_entrance(on_pill_pop=lambda: self.play("tick"))
+
+                self.companion.glide_to_rect(target_geo, duration=480, on_finished=_on_dock_landed)
+
+            QTimer.singleShot(1200, _glide_to_nest)
+        else:
+            self.companion.show()
+            self.companion.mascot.trigger_wave(1.8)
+            self.play("greeting")
 
     def quit_app(self):
         self.greeting_bubble.close()

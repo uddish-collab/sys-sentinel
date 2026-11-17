@@ -9,7 +9,9 @@ Designed to match the high-end Mochi aesthetic:
 - Zero clutter, zero lag, delicate borders, and soft shadows
 """
 
-from typing import Optional, Callable, Dict, Any
+import math
+import time
+from typing import Optional, Callable, Dict, Any, List
 from PySide6.QtCore import (
     Qt,
     QRectF,
@@ -204,6 +206,11 @@ class TopIslandWindow(QWidget):
         self._hover_target: Optional[str] = None
         self.setMouseTracking(True)
 
+        # Pill entrance animations (scale, opacity) - hidden initially until Senti docks
+        self._pill_scales = [0.0, 0.0, 0.0, 0.0]
+        self._pill_alphas = [0.0, 0.0, 0.0, 0.0]
+        self._pill_timers: List[QTimer] = []
+
         # Opacity animation for hide/show
         self._opacity_effect = QGraphicsOpacityEffect(self)
         self.setGraphicsEffect(self._opacity_effect)
@@ -211,10 +218,61 @@ class TopIslandWindow(QWidget):
         self._fade_anim.setDuration(160)
         self._fade_anim.setEasingCurve(QEasingCurve.Type.InOutCubic)
 
-    def get_dock_target_pos(self, senti_size: int = 58) -> QPoint:
+    def animate_pills_entrance(self, on_pill_pop: Optional[Callable[[], None]] = None):
+        """Smooth staggered spring entrance for the 4 metric pills."""
+        self._pill_scales = [0.0, 0.0, 0.0, 0.0]
+        self._pill_alphas = [0.0, 0.0, 0.0, 0.0]
+        self.update()
+
+        for timer in list(self._pill_timers):
+            timer.stop()
+        self._pill_timers.clear()
+
+        # Staggered pop-in for each pill (70ms apart)
+        for i in range(4):
+            delay_ms = i * 70
+            t = QTimer(self)
+            t.setSingleShot(True)
+            t.setInterval(delay_ms)
+
+            def _start_pill(pill_idx=i):
+                if on_pill_pop:
+                    on_pill_pop()
+                self._animate_single_pill(pill_idx)
+
+            t.timeout.connect(_start_pill)
+            self._pill_timers.append(t)
+            t.start()
+
+    def _animate_single_pill(self, idx: int):
+        anim_timer = QTimer(self)
+        anim_timer.setInterval(16)
+        start_time = time.time()
+        duration = 0.22
+
+        def _step():
+            elapsed = time.time() - start_time
+            progress = min(1.0, elapsed / duration)
+            # Spring overshoot curve
+            s = 1.0 + math.sin(progress * math.pi) * 0.12 * (1.0 - progress)
+            self._pill_scales[idx] = s if progress < 1.0 else 1.0
+            self._pill_alphas[idx] = min(1.0, progress * 1.5)
+            self.update()
+            if progress >= 1.0:
+                anim_timer.stop()
+                try:
+                    self._pill_timers.remove(anim_timer)
+                except ValueError:
+                    pass
+
+        anim_timer.timeout.connect(_step)
+        self._pill_timers.append(anim_timer)
+        anim_timer.start()
+
+    def get_dock_target_pos(self, senti_size: int = 72) -> QPoint:
         """Calculate screen position where SENTI nests inside Card 1 (cx: 78, cy: 92)."""
-        dock_x = self.x() + 49 + (58 - senti_size) // 2
-        dock_y = self.y() + 63 + (58 - senti_size) // 2
+        dock_x = self.x() + 78 - senti_size // 2
+        dock_y = self.y() + 92 - senti_size // 2
         return QPoint(dock_x, dock_y)
 
     def update_telemetry(self, data: Dict[str, Any]):
@@ -352,28 +410,31 @@ class TopIslandWindow(QWidget):
         if not p.begin(self):
             return
         try:
-            p.setRenderHint(QPainter.RenderHint.Antialiasing)
-            p.setRenderHint(QPainter.RenderHint.TextAntialiasing)
-
-            w = self.width()
-            h = self.height()
-
-            # 1. ENTIRE OUTER ISLAND CONTAINER (#island: background #000, 22px corner radius)
-            island_rect = QRectF(1.0, 1.0, w - 2.0, h - 2.0)
-            p.setPen(QPen(QColor(255, 255, 255, 28), 1.0))
-            p.setBrush(QColor("#000000"))
-            p.drawRoundedRect(island_rect, 22.0, 22.0)
-
-            # 2. Header Bar (#header: height 34px)
-            self._paint_top_bar(p)
-
-            # 3. Overview Left Card (.overview > .left: w=322, h=116, radius=20, bg=#141518)
-            self._paint_card_1(p)
-
-            # 4. Overview Right Card (.overview > .right: w=288, h=116, radius=20, bg=#141518)
-            self._paint_card_2(p)
+            self.render_to_painter(p)
         finally:
             p.end()
+
+    def render_to_painter(self, p: QPainter):
+        p.setRenderHint(QPainter.RenderHint.Antialiasing)
+        p.setRenderHint(QPainter.RenderHint.TextAntialiasing)
+
+        w = self.width()
+        h = self.height()
+
+        # 1. ENTIRE OUTER ISLAND CONTAINER (#island: background #000, 22px corner radius)
+        island_rect = QRectF(1.0, 1.0, w - 2.0, h - 2.0)
+        p.setPen(QPen(QColor(255, 255, 255, 28), 1.0))
+        p.setBrush(QColor("#000000"))
+        p.drawRoundedRect(island_rect, 22.0, 22.0)
+
+        # 2. Header Bar (#header: height 34px)
+        self._paint_top_bar(p)
+
+        # 3. Overview Left Card (.overview > .left: w=322, h=116, radius=20, bg=#141518)
+        self._paint_card_1(p)
+
+        # 4. Overview Right Card (.overview > .right: w=288, h=116, radius=20, bg=#141518)
+        self._paint_card_2(p)
 
     def _paint_top_bar(self, p: QPainter):
         """Paint header bar matching Mochi #header tabs and actions."""
@@ -495,13 +556,13 @@ class TopIslandWindow(QWidget):
         ph = 28.0
 
         # Pill 1: CPU (Emerald #22c55e)
-        self._paint_pill(p, col1_x, row1_y, pw, ph, QColor("#22c55e"), "CPU", f"{cpu_val:.0f}%")
+        self._paint_pill(p, col1_x, row1_y, pw, ph, QColor("#22c55e"), "CPU", f"{cpu_val:.0f}%", self._pill_scales[0], self._pill_alphas[0])
         # Pill 2: RAM (Amber #f5a524)
-        self._paint_pill(p, col2_x, row1_y, pw, ph, QColor("#f5a524"), "RAM", f"{ram_val:.0f}%")
+        self._paint_pill(p, col2_x, row1_y, pw, ph, QColor("#f5a524"), "RAM", f"{ram_val:.0f}%", self._pill_scales[1], self._pill_alphas[1])
         # Pill 3: DISK (Indigo #6366f1)
-        self._paint_pill(p, col1_x, row2_y, pw, ph, QColor("#6366f1"), f"{sys_drive} DISK", f"{disk_val:.0f}%")
+        self._paint_pill(p, col1_x, row2_y, pw, ph, QColor("#6366f1"), f"{sys_drive} DISK", f"{disk_val:.0f}%", self._pill_scales[2], self._pill_alphas[2])
         # Pill 4: TEMP (Red/Rose #f4505e)
-        self._paint_pill(p, col2_x, row2_y, pw, ph, QColor("#f4505e"), "TEMP", temp_str)
+        self._paint_pill(p, col2_x, row2_y, pw, ph, QColor("#f4505e"), "TEMP", temp_str, self._pill_scales[3], self._pill_alphas[3])
 
     def _paint_pill(
         self,
@@ -513,8 +574,22 @@ class TopIslandWindow(QWidget):
         badge_color: QColor,
         label: str,
         val_str: str,
+        scale: float = 1.0,
+        alpha: float = 1.0,
     ):
         """Paint a single pill (.pill: height 28px, radius 999px, bg #0e0f11, border rgba(255,255,255,0.14))."""
+        if scale < 0.01 or alpha < 0.01:
+            return
+
+        p.save()
+        if scale < 0.999 or scale > 1.001 or alpha < 0.999:
+            pcx = px + pw / 2.0
+            pcy = py + ph / 2.0
+            p.translate(pcx, pcy)
+            p.scale(scale, scale)
+            p.translate(-pcx, -pcy)
+            p.setOpacity(alpha)
+
         rect = QRectF(px, py, pw, ph)
         p.setPen(QPen(QColor(255, 255, 255, 36), 1.0))
         p.setBrush(QColor("#0e0f11"))
@@ -548,6 +623,7 @@ class TopIslandWindow(QWidget):
             Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignRight,
             val_str,
         )
+        p.restore()
 
 
 def get_default_island_pos(island_w: int, island_h: int) -> QPoint:

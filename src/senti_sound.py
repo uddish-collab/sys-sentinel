@@ -12,7 +12,25 @@ import wave
 from typing import Dict, List, Tuple
 
 
-SOUND_NAMES = ["click", "open", "close", "shrink", "restore", "show", "hide", "dock"]
+# Authentic Mochi Sound Names
+MOCHI_SOUND_NAMES = [
+    "peek", "open", "close", "hover", "blip", "slap", "annoyed", "dizzy", "greet",
+    "work", "finish", "error", "approval", "question", "approve", "gulp", "tick",
+    "send", "love", "pop", "proud", "wink", "yawn", "attach", "think", "search",
+    "rate", "sleep", "greeting",
+]
+
+LEGACY_SOUND_NAMES = ["click", "open", "close", "shrink", "restore", "show", "hide", "dock"]
+SOUND_NAMES = list(set(MOCHI_SOUND_NAMES + LEGACY_SOUND_NAMES))
+
+SOUND_ALIASES = {
+    "click": "blip",
+    "dock": "attach",
+    "show": "greet",
+    "hide": "close",
+    "shrink": "close",
+    "restore": "open",
+}
 
 
 def get_sound_dir() -> str:
@@ -23,6 +41,15 @@ def get_sound_dir() -> str:
     sound_dir = os.path.join(local_app_data, "SYS-SENTINEL", "sounds")
     os.makedirs(sound_dir, exist_ok=True)
     return sound_dir
+
+
+def get_bundled_sound_dir() -> str:
+    """Return path to bundled assets/sounds folder."""
+    # Check PyInstaller bundle dir
+    if getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS"):
+        return os.path.join(sys._MEIPASS, "assets", "sounds")
+    repo_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    return os.path.join(repo_root, "assets", "sounds")
 
 
 def synthesize_tone(
@@ -122,21 +149,38 @@ def generate_sound_specs() -> Dict[str, bytes]:
 
 
 def ensure_sound_files() -> str:
-    """Ensure all required WAV files exist on disk, generating them if missing."""
+    """Ensure all required WAV files exist on disk, copying bundled ones or synthesizing."""
     sound_dir = get_sound_dir()
+    bundled_dir = get_bundled_sound_dir()
+
+    # 1. Copy bundled Mochi sounds if available
+    if os.path.isdir(bundled_dir):
+        for f in os.listdir(bundled_dir):
+            if f.endswith(".wav"):
+                src_file = os.path.join(bundled_dir, f)
+                dst_file = os.path.join(sound_dir, f)
+                if not os.path.exists(dst_file):
+                    try:
+                        with open(src_file, "rb") as rf, open(dst_file, "wb") as wf:
+                            wf.write(rf.read())
+                    except Exception:
+                        pass
+
+    # 2. Synthesize fallback tones for any missing legacy names
     specs = generate_sound_specs()
     for name, pcm in specs.items():
         wav_path = os.path.join(sound_dir, f"{name}.wav")
         if not os.path.exists(wav_path):
             write_wav_file(wav_path, pcm)
+
     return sound_dir
 
 
 def play_sound(name: str, enabled: bool = True):
     """Play an interaction sound asynchronously using winsound.
     
+    Supports authentic Mochi sounds and legacy tone names.
     Uses SND_FILENAME | SND_ASYNC | SND_NODEFAULT.
-    Does NOT use SND_MEMORY (which raises RuntimeError with SND_ASYNC).
     """
     if not enabled:
         return
@@ -146,14 +190,38 @@ def play_sound(name: str, enabled: bool = True):
 
     try:
         import winsound
-        sound_dir = get_sound_dir()
-        wav_path = os.path.join(sound_dir, f"{name}.wav")
-        if not os.path.exists(wav_path):
-            ensure_sound_files()
 
-        if os.path.exists(wav_path):
+        # Check aliases if direct name not found
+        actual_name = name
+        bundled_dir = get_bundled_sound_dir()
+        sound_dir = get_sound_dir()
+
+        candidate_paths = [
+            os.path.join(bundled_dir, f"{actual_name}.wav"),
+            os.path.join(sound_dir, f"{actual_name}.wav"),
+        ]
+
+        if actual_name in SOUND_ALIASES:
+            alias = SOUND_ALIASES[actual_name]
+            candidate_paths.append(os.path.join(bundled_dir, f"{alias}.wav"))
+            candidate_paths.append(os.path.join(sound_dir, f"{alias}.wav"))
+
+        resolved_path = None
+        for p in candidate_paths:
+            if os.path.isfile(p):
+                resolved_path = p
+                break
+
+        if not resolved_path:
+            ensure_sound_files()
+            for p in candidate_paths:
+                if os.path.isfile(p):
+                    resolved_path = p
+                    break
+
+        if resolved_path:
             flags = winsound.SND_FILENAME | winsound.SND_ASYNC | winsound.SND_NODEFAULT
-            winsound.PlaySound(wav_path, flags)
+            winsound.PlaySound(resolved_path, flags)
     except Exception:
         # Never crash the main UI thread if audio device is unavailable
         pass

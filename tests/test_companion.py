@@ -26,9 +26,9 @@ class TestCompanionAndIsland(unittest.TestCase):
         center_pt = QPoint(43, 43)
         self.assertTrue(companion.is_on_senti(center_pt))
 
-        # Antenna top point must be inside
-        antenna_pt = QPoint(43, 10)
-        self.assertTrue(companion.is_on_senti(antenna_pt))
+        # Top center of helmet must be inside
+        helmet_top_pt = QPoint(43, 18)
+        self.assertTrue(companion.is_on_senti(helmet_top_pt))
 
         # Far corners (transparent area) must be strictly outside (NOT draggable)
         self.assertFalse(companion.is_on_senti(QPoint(2, 2)))

@@ -34,7 +34,7 @@ if errorlevel 1 (
 
 REM 4. Build single-file windowed executable
 echo [INFO] Running PyInstaller...
-.\.venv\Scripts\python.exe -m PyInstaller --noconfirm --clean --onefile --windowed --name SENTI --icon "assets\senti.ico" --paths "src" "src\senti_app.py"
+.\.venv\Scripts\python.exe -m PyInstaller --noconfirm --clean --onefile --windowed --name SENTI --icon "assets\senti.ico" --add-data "assets\sounds;assets\sounds" --paths "src" "src\senti_app.py"
 
 if errorlevel 1 (
     echo [ERROR] PyInstaller build failed.

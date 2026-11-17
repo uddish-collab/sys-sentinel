@@ -84,6 +84,11 @@ class SentiMascot(QWidget):
         self._last_blink_time = time.time()
         self._next_blink_interval = random.uniform(2.5, 4.5)
 
+        # Waving hand animation state
+        self._wave_amount: float = 0.0
+        self._target_wave_amount: float = 0.0
+        self._wave_time_remaining: float = 0.0
+
         # Base custom colors (provided by settings/controller)
         self.color_body = QColor("#f4f1ea")
         self.color_details = QColor("#14213d")
@@ -128,12 +133,15 @@ class SentiMascot(QWidget):
         """Squish feedback when clicked."""
         self._squish_scale = 0.88
 
-    def trigger_greeting_wave(self):
+    def trigger_greeting_wave(self, duration_s: float = 2.2):
         """Startup friendly hi/hello hand waving animation."""
-        self._wave_active = True
-        self._wave_progress = 0.0
-        self._target_mouth_curve = 1.0  # Big happy smile
+        self._target_wave_amount = 1.0
+        self._wave_time_remaining = duration_s
+        self.trigger_squish()
         self.update()
+
+    def trigger_wave(self, duration_s: float = 2.2):
+        self.trigger_greeting_wave(duration_s)
 
     # --- Mood Configurations ---
 
@@ -187,6 +195,13 @@ class SentiMascot(QWidget):
         self._pulse_speed += (self._target_pulse_speed - self._pulse_speed) * alpha
         self._shake_amount += (self._target_shake_amount - self._shake_amount) * alpha
         self._tint_amount += (self._target_tint_amount - self._tint_amount) * alpha
+
+        # Waving hand timer
+        if self._wave_time_remaining > 0:
+            self._wave_time_remaining -= dt
+            if self._wave_time_remaining <= 0:
+                self._target_wave_amount = 0.0
+        self._wave_amount += (self._target_wave_amount - self._wave_amount) * 0.18
 
         # Squish spring back
         self._squish_scale += (1.0 - self._squish_scale) * 0.20
@@ -306,225 +321,150 @@ class SentiMascot(QWidget):
         glow_c: QColor,
         pulse: float,
     ):
-        """Paint the full, rich SENTI mascot character."""
-        # Body bounds
-        bw = w * 0.68
-        bh = h * 0.62
-        bx = cx - bw / 2.0
-        by = cy - bh / 2.0 + (h * 0.05)
-        body_rect = QRectF(bx, by, bw, bh)
+        """Paint Option D: The Visor Astronaut (Cyber-Luxury Minimalist)."""
+        del details_c
 
-        # 1. Outer Glow Aura
-        glow_radius = max(bw, bh) * 0.62
-        glow_grad = QRadialGradient(cx, by + bh * 0.5, glow_radius)
-        glow_alpha = int(45 * pulse)
-        c_glow_outer = QColor(glow_c.red(), glow_c.green(), glow_c.blue(), glow_alpha)
-        glow_grad.setColorAt(0.0, c_glow_outer)
-        glow_grad.setColorAt(0.65, QColor(glow_c.red(), glow_c.green(), glow_c.blue(), int(glow_alpha * 0.3)))
-        glow_grad.setColorAt(1.0, QColor(glow_c.red(), glow_c.green(), glow_c.blue(), 0))
+        # Body bounds (sleek ceramic squircle helmet)
+        bw = max(40.0, min(w * 0.70, 54.0))
+        bh = max(34.0, min(h * 0.60, 46.0))
+        bx = cx - bw / 2.0
+        by = cy - bh / 2.0 + (h * 0.03)
+        body_rect = QRectF(bx, by, bw, bh)
+        corner_r = bw * 0.36
+
+        # 1. Radiant Outer Aura Glow (Visible cyan aura around character)
+        glow_radius = max(bw, bh) * 0.80
+        glow_grad = QRadialGradient(cx, cy, glow_radius)
+        glow_alpha = int(115 * pulse)
+        glow_grad.setColorAt(0.0, QColor(0, 229, 255, glow_alpha))
+        glow_grad.setColorAt(0.40, QColor(0, 229, 255, int(glow_alpha * 0.60)))
+        glow_grad.setColorAt(0.72, QColor(0, 229, 255, int(glow_alpha * 0.20)))
+        glow_grad.setColorAt(1.0, QColor(0, 229, 255, 0))
         p.setPen(Qt.PenStyle.NoPen)
         p.setBrush(glow_grad)
-        p.drawEllipse(QPointF(cx, by + bh * 0.5), glow_radius, glow_radius)
+        p.drawEllipse(QPointF(cx, cy), glow_radius, glow_radius)
 
-        # 2. Antenna with pulsing beacon tip
-        antenna_stalk_h = max(7.0, h * 0.10)
-        antenna_top_y = by - antenna_stalk_h
-        stalk_w = max(1.8, w * 0.024)
-        p.setPen(QPen(details_c, stalk_w, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap))
-        p.drawLine(QPointF(cx, by + 3), QPointF(cx, antenna_top_y))
-
-        # Antenna tip beacon
-        tip_radius = max(2.6, h * 0.035)
-        tip_glow = QRadialGradient(cx, antenna_top_y, tip_radius * 2.0)
-        tip_glow.setColorAt(0.0, eyes_c)
-        tip_glow.setColorAt(0.7, QColor(eyes_c.red(), eyes_c.green(), eyes_c.blue(), int(180 * pulse)))
-        tip_glow.setColorAt(1.0, QColor(eyes_c.red(), eyes_c.green(), eyes_c.blue(), 0))
-        p.setPen(Qt.PenStyle.NoPen)
-        p.setBrush(tip_glow)
-        p.drawEllipse(QPointF(cx, antenna_top_y), tip_radius * 2.0, tip_radius * 2.0)
-        p.setBrush(eyes_c)
-        p.drawEllipse(QPointF(cx, antenna_top_y), tip_radius, tip_radius)
-
-        # 3. Ear Pods with light strips
-        ear_w = max(6.0, w * 0.075)
-        ear_h = max(12.0, h * 0.16)
-        ear_y = by + bh * 0.40
-        ear_r = max(2.5, ear_w * 0.4)
-        # Left pod
-        p.setPen(Qt.PenStyle.NoPen)
-        p.setBrush(details_c)
-        p.drawRoundedRect(QRectF(bx - ear_w + 2, ear_y, ear_w, ear_h), ear_r, ear_r)
-        # Right pod
-        p.drawRoundedRect(QRectF(bx + bw - 2, ear_y, ear_w, ear_h), ear_r, ear_r)
-        # Ear pod illuminated light strips
-        strip_w = max(1.2, w * 0.015)
-        strip_pen = QPen(eyes_c, strip_w, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap)
-        p.setPen(strip_pen)
-        p.drawLine(QPointF(bx - ear_w / 2.0 + 1, ear_y + 3), QPointF(bx - ear_w / 2.0 + 1, ear_y + ear_h - 3))
-        p.drawLine(QPointF(bx + bw + ear_w / 2.0 - 1, ear_y + 3), QPointF(bx + bw + ear_w / 2.0 - 1, ear_y + ear_h - 3))
-
-        # 4. Pearl-Shelled Helmet Head
-        corner_r = bw * 0.38
-        shell_grad = QLinearGradient(bx, by, bx + bw, by + bh)
-        shell_grad.setColorAt(0.0, body_c.lighter(116))
-        shell_grad.setColorAt(0.45, body_c)
-        shell_grad.setColorAt(1.0, body_c.darker(122))
-
-        p.setPen(QPen(details_c.lighter(125), 2.5))
+        # 2. Ceramic Squircle Helmet
+        shell_grad = QLinearGradient(bx, by, bx, by + bh)
+        shell_grad.setColorAt(0.0, QColor("#f6f7fa"))
+        shell_grad.setColorAt(1.0, QColor("#c8cbd4"))
+        p.setPen(QPen(QColor(255, 255, 255, 45), 1.0))
         p.setBrush(shell_grad)
         p.drawRoundedRect(body_rect, corner_r, corner_r)
 
-        # Specular highlight on shell (top-left glossy reflection)
-        spec_grad = QRadialGradient(bx + bw * 0.32, by + bh * 0.22, bw * 0.35)
-        spec_grad.setColorAt(0.0, QColor(255, 255, 255, 140))
-        spec_grad.setColorAt(0.5, QColor(255, 255, 255, 40))
-        spec_grad.setColorAt(1.0, QColor(255, 255, 255, 0))
-        p.setPen(Qt.PenStyle.NoPen)
-        p.setBrush(spec_grad)
-        p.drawEllipse(QPointF(bx + bw * 0.32, by + bh * 0.22), bw * 0.32, bh * 0.24)
+        # Subtle specular hairline on top curve of helmet
+        spec_path = QPainterPath()
+        spec_path.moveTo(bx + corner_r * 0.7, by + 1.2)
+        spec_path.lineTo(bx + bw - corner_r * 0.7, by + 1.2)
+        p.setPen(QPen(QColor(255, 255, 255, 140), 1.2, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap))
+        p.drawPath(spec_path)
 
-        # Bottom shading / ambient occlusion on shell
-        bottom_shadow = QLinearGradient(bx, by + bh * 0.70, bx, by + bh)
-        bottom_shadow.setColorAt(0.0, QColor(10, 15, 30, 0))
-        bottom_shadow.setColorAt(1.0, QColor(10, 15, 30, 60))
-        p.setBrush(bottom_shadow)
-        p.drawRoundedRect(body_rect, corner_r, corner_r)
+        # 3. Dark Tinted Obsidian Glass Visor
+        vw = bw * 0.76
+        vh = bh * 0.48
+        vx = cx - vw / 2.0
+        vy = cy - vh / 2.0 + (h * 0.02)
+        visor_rect = QRectF(vx, vy, vw, vh)
+        vr = vh / 2.0  # Fully rounded capsule pill
 
-        # 5. Glass Face Plate (Dark visor display)
-        face_w = bw * 0.74
-        face_h = bh * 0.52
-        face_x = cx - face_w / 2.0
-        face_y = by + bh * 0.28
-        face_rect = QRectF(face_x, face_y, face_w, face_h)
-        face_corner = face_w * 0.25
+        p.setPen(QPen(QColor(255, 255, 255, 30), 1.0))
+        p.setBrush(QColor("#0d0e12"))
+        p.drawRoundedRect(visor_rect, vr, vr)
 
-        face_grad = QLinearGradient(face_x, face_y, face_x + face_w, face_y + face_h)
-        face_grad.setColorAt(0.0, details_c.darker(120))
-        face_grad.setColorAt(0.5, details_c)
-        face_grad.setColorAt(1.0, details_c.darker(130))
-
-        p.setPen(QPen(details_c.darker(140), 1.5))
-        p.setBrush(face_grad)
-        p.drawRoundedRect(face_rect, face_corner, face_corner)
-
-        # Glass sheen reflection on face plate
+        # Glass sheen reflection on top half of visor
         p.save()
-        sheen_path = QPainterPath()
-        sheen_path.addRoundedRect(face_rect, face_corner, face_corner)
-        p.setClipPath(sheen_path)
-        sheen_grad = QLinearGradient(face_x, face_y, face_x + face_w * 0.8, face_y + face_h * 0.7)
-        sheen_grad.setColorAt(0.0, QColor(255, 255, 255, 35))
-        sheen_grad.setColorAt(0.4, QColor(255, 255, 255, 10))
-        sheen_grad.setColorAt(0.42, QColor(255, 255, 255, 0))
+        visor_clip = QPainterPath()
+        visor_clip.addRoundedRect(visor_rect, vr, vr)
+        p.setClipPath(visor_clip)
+        sheen = QLinearGradient(vx, vy, vx + vw, vy + vh * 0.65)
+        sheen.setColorAt(0.0, QColor(255, 255, 255, 48))
+        sheen.setColorAt(0.48, QColor(255, 255, 255, 12))
+        sheen.setColorAt(0.50, QColor(255, 255, 255, 0))
         p.setPen(Qt.PenStyle.NoPen)
-        p.setBrush(sheen_grad)
-        p.drawRect(face_rect)
+        p.setBrush(sheen)
+        p.drawRect(visor_rect)
         p.restore()
 
-        # 6. Glowing Eyes, Brows, and Mouth
-        self._paint_facial_features(p, cx, face_y + face_h * 0.42, face_w, face_h, eyes_c, details_c, pulse)
+        # 4. Glowing Eyes inside Visor
+        self._paint_facial_features(p, cx, vy + vh * 0.5, vw, vh, eyes_c, pulse)
 
-        # 7. Sweat drop if in critical state
-        if self._mood == MOOD_CRITICAL and self._sweat_progress > 0.05:
-            drop_x = face_x + face_w - 9.0
-            drop_y = face_y + 12.0 + self._sweat_progress * (face_h - 22.0)
-            drop_alpha = int(220 * (1.0 - self._sweat_progress * 0.7))
-            drop_color = QColor(0, 229, 255, drop_alpha)
+        # 5. Animated Single Waving Glove Paw (Only one hand when waving)
+        if self._wave_amount > 0.01:
+            pw = max(9.0, bw * 0.20)
+            ph = max(14.0, bh * 0.30)
+            paw_cx = bx + bw + 1.0
+            paw_cy = by + bh * 0.35 - (self._wave_amount * 10.0)
+            wave_rot = -26.0 + 22.0 * math.sin(self._phase * 12.0)
+
+            p.save()
+            p.translate(paw_cx, paw_cy)
+            p.rotate(wave_rot)
+            p.scale(self._wave_amount, self._wave_amount)
+
+            # Glove body
+            glove_rect = QRectF(-pw / 2.0, -ph / 2.0, pw, ph)
+            p.setPen(QPen(QColor(255, 255, 255, 60), 1.0))
+            p.setBrush(QColor("#f4f5f9"))
+            p.drawRoundedRect(glove_rect, pw / 2.0, pw / 2.0)
+
+            # Cyan wrist micro-accent cuff
+            cuff_rect = QRectF(-pw * 0.42, ph * 0.25, pw * 0.84, max(2.0, ph * 0.15))
             p.setPen(Qt.PenStyle.NoPen)
-            p.setBrush(drop_color)
-            p.drawEllipse(QPointF(drop_x, drop_y), 3.0, 4.2)
+            p.setBrush(QColor("#00e5ff"))
+            p.drawRoundedRect(cuff_rect, 1.2, 1.2)
+            p.restore()
 
     def _paint_facial_features(
         self,
         p: QPainter,
         cx: float,
         eye_center_y: float,
-        face_w: float,
-        face_h: float,
+        visor_w: float,
+        visor_h: float,
         eyes_c: QColor,
-        details_c: QColor,
         pulse: float,
     ):
-        del details_c
-        # Blink height factor: dips smoothly to 0.1 during blink
+        """Paint glowing pill eyes inside the visor."""
+        # Blink height factor
         blink_factor = 1.0
         if self._is_blinking:
-            # Sinusoidal blink curve (0 -> 1 -> 0)
             s = math.sin(self._blink_progress * math.pi)
             blink_factor = max(0.08, 1.0 - s * 0.92)
 
         # Eye sizing
-        base_eye_w = face_w * 0.17 * self._eye_width
-        base_eye_h = face_h * 0.32 * self._eye_height * blink_factor
-        eye_spacing = face_w * 0.28
+        eye_w = max(4.0, visor_w * 0.16 * self._eye_width)
+        base_h = max(7.0, visor_h * 0.44 * self._eye_height)
+        eye_h = max(1.8, base_h * blink_factor)
+        eye_spacing = visor_w * 0.24
 
         left_eye_x = cx - eye_spacing
         right_eye_x = cx + eye_spacing
 
-        # Draw eyes with halo glow
+        # Soft halo glow behind eyes
+        halo_r = max(eye_w, base_h) * 1.4
+        glow_alpha = int(55 * pulse)
         for ex in (left_eye_x, right_eye_x):
-            # Eye outer halo
-            halo_r = max(base_eye_w, base_eye_h) * 1.5
             halo = QRadialGradient(ex, eye_center_y, halo_r)
-            halo.setColorAt(0.0, QColor(eyes_c.red(), eyes_c.green(), eyes_c.blue(), int(130 * pulse)))
-            halo.setColorAt(0.6, QColor(eyes_c.red(), eyes_c.green(), eyes_c.blue(), int(40 * pulse)))
+            halo.setColorAt(0.0, QColor(eyes_c.red(), eyes_c.green(), eyes_c.blue(), glow_alpha))
+            halo.setColorAt(0.65, QColor(eyes_c.red(), eyes_c.green(), eyes_c.blue(), int(glow_alpha * 0.3)))
             halo.setColorAt(1.0, QColor(eyes_c.red(), eyes_c.green(), eyes_c.blue(), 0))
             p.setPen(Qt.PenStyle.NoPen)
             p.setBrush(halo)
             p.drawEllipse(QPointF(ex, eye_center_y), halo_r, halo_r)
 
-            # Eye pill/ellipse core
-            eye_rect = QRectF(ex - base_eye_w / 2.0, eye_center_y - base_eye_h / 2.0, base_eye_w, base_eye_h)
-            p.setBrush(eyes_c)
-            p.drawRoundedRect(eye_rect, base_eye_w / 2.0, base_eye_h / 2.0)
+        # Solid Glowing Pill Eyes
+        p.setBrush(eyes_c)
+        for ex in (left_eye_x, right_eye_x):
+            er = eye_w / 2.0
+            eye_rect = QRectF(ex - er, eye_center_y - eye_h / 2.0, eye_w, eye_h)
+            p.drawRoundedRect(eye_rect, er, er)
 
-            # Specular pupil dot if eye is open
-            if blink_factor > 0.5:
-                spec_w = max(2.0, base_eye_w * 0.3)
-                spec_h = max(2.0, base_eye_h * 0.3)
-                p.setBrush(QColor(255, 255, 255, 220))
-                p.drawEllipse(QRectF(ex - base_eye_w * 0.25, eye_center_y - base_eye_h * 0.35, spec_w, spec_h))
-
-        # Brows
-        brow_len = base_eye_w * 1.25
-        brow_y = eye_center_y - base_eye_h * 0.85 - 2.0
-        brow_pen = QPen(eyes_c, 2.5, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap)
-        p.setPen(brow_pen)
-
-        if self._brow_angle > 0.05:
-            # Angled worried brows: inner corners raised
-            slant = brow_len * self._brow_angle * 0.5
-            # Left brow: outer left is lower, inner right is higher
-            p.drawLine(QPointF(left_eye_x - brow_len / 2.0, brow_y + slant),
-                       QPointF(left_eye_x + brow_len / 2.0, brow_y - slant))
-            # Right brow: inner left is higher, outer right is lower
-            p.drawLine(QPointF(right_eye_x - brow_len / 2.0, brow_y - slant),
-                       QPointF(right_eye_x + brow_len / 2.0, brow_y + slant))
-        else:
-            # Gentle neutral brows
-            p.drawLine(QPointF(left_eye_x - brow_len / 2.0, brow_y),
-                       QPointF(left_eye_x + brow_len / 2.0, brow_y))
-            p.drawLine(QPointF(right_eye_x - brow_len / 2.0, brow_y),
-                       QPointF(right_eye_x + brow_len / 2.0, brow_y))
-
-        # Mouth
-        mouth_y = eye_center_y + base_eye_h * 0.72 + 6.0
-        mouth_w = face_w * 0.22
-        mouth_pen = QPen(eyes_c, 2.2, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap)
-        p.setPen(mouth_pen)
-
-        if abs(self._mouth_curve) < 0.15:
-            # Flat uneasy mouth
-            p.drawLine(QPointF(cx - mouth_w / 2.0, mouth_y), QPointF(cx + mouth_w / 2.0, mouth_y))
-        elif self._mouth_curve > 0.0:
-            # Smile arc (curve downwards at bottom)
-            mouth_rect = QRectF(cx - mouth_w / 2.0, mouth_y - 4, mouth_w, mouth_w * 0.55 * self._mouth_curve)
-            p.drawArc(mouth_rect, 205 * 16, 130 * 16)
-        else:
-            # Frown arc (curve upwards)
-            frown_depth = mouth_w * 0.55 * abs(self._mouth_curve)
-            mouth_rect = QRectF(cx - mouth_w / 2.0, mouth_y, mouth_w, frown_depth)
-            p.drawArc(mouth_rect, 25 * 16, 130 * 16)
+            # Tiny top specular reflection dot if eye is open
+            if blink_factor > 0.6:
+                spec_r = max(1.0, eye_w * 0.22)
+                p.setBrush(QColor(255, 255, 255, 230))
+                p.drawEllipse(QPointF(ex - er * 0.3, eye_center_y - eye_h * 0.25), spec_r, spec_r)
+                p.setBrush(eyes_c)
 
     def _paint_orb(
         self,
