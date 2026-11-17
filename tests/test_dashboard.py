@@ -29,31 +29,41 @@ class TestDashboardAndSubsystems(unittest.TestCase):
     def test_dashboard_instantiation_and_tabs(self):
         dash = SentiDashboardWindow()
         self.assertEqual(dash.tabs.count(), 8)
+        # Verify that tab bar is hidden so only the dedicated active tab appears
+        self.assertFalse(dash.tabs.tabBar().isVisible())
         
         # Test direct tab switching
         dash.open_tab("CPU")
         self.assertEqual(dash.tabs.currentIndex(), 0)
+        self.assertIn("CPU", dash.lbl_title.text())
         
         dash.open_tab("RAM")
         self.assertEqual(dash.tabs.currentIndex(), 1)
+        self.assertIn("MEMORY", dash.lbl_title.text())
         
         dash.open_tab("STORAGE")
         self.assertEqual(dash.tabs.currentIndex(), 2)
+        self.assertIn("STORAGE", dash.lbl_title.text())
         
         dash.open_tab("THERMALS")
         self.assertEqual(dash.tabs.currentIndex(), 3)
+        self.assertIn("THERMAL", dash.lbl_title.text())
 
         dash.open_tab("GPU")
         self.assertEqual(dash.tabs.currentIndex(), 4)
+        self.assertIn("GPU", dash.lbl_title.text())
 
         dash.open_tab("NETWORK")
         self.assertEqual(dash.tabs.currentIndex(), 5)
+        self.assertIn("NETWORK", dash.lbl_title.text())
 
         dash.open_tab("PROCESSES")
         self.assertEqual(dash.tabs.currentIndex(), 6)
+        self.assertIn("PROCESS", dash.lbl_title.text())
 
         dash.open_tab("SYSTEM")
         self.assertEqual(dash.tabs.currentIndex(), 7)
+        self.assertIn("SYSTEM", dash.lbl_title.text())
 
         dash.close()
 
@@ -110,14 +120,27 @@ class TestDashboardAndSubsystems(unittest.TestCase):
 
     def test_island_pill_hit_testing(self):
         island = TopIslandWindow()
-        # Pill 1: CPU (col1_x: 350..484, row1_y: 34..62)
-        self.assertEqual(island._hit_test(QPoint(380, 48)), "pill_cpu")
-        # Pill 2: RAM (col2_x: 488..622, row1_y: 34..62)
-        self.assertEqual(island._hit_test(QPoint(520, 48)), "pill_ram")
-        # Pill 3: DISK (col1_x: 350..484, row2_y: 74..102)
-        self.assertEqual(island._hit_test(QPoint(380, 88)), "pill_disk")
-        # Pill 4: TEMP (col2_x: 488..622, row2_y: 74..102)
-        self.assertEqual(island._hit_test(QPoint(520, 88)), "pill_temp")
+        self.assertEqual(island.width(), 892)
+
+        # Row 1 (y: 26..62)
+        # Pill 1: CPU (col1_x: 350..478)
+        self.assertEqual(island._hit_test(QPoint(414, 44)), "pill_cpu")
+        # Pill 2: RAM (col2_x: 482..610)
+        self.assertEqual(island._hit_test(QPoint(546, 44)), "pill_ram")
+        # Pill 3: GPU (col3_x: 614..742)
+        self.assertEqual(island._hit_test(QPoint(678, 44)), "pill_gpu")
+        # Pill 4: NET (col4_x: 746..874)
+        self.assertEqual(island._hit_test(QPoint(810, 44)), "pill_net")
+
+        # Row 2 (y: 68..104)
+        # Pill 5: DISK (col1_x: 350..478)
+        self.assertEqual(island._hit_test(QPoint(414, 86)), "pill_disk")
+        # Pill 6: TEMP (col2_x: 482..610)
+        self.assertEqual(island._hit_test(QPoint(546, 86)), "pill_temp")
+        # Pill 7: PROC (col3_x: 614..742)
+        self.assertEqual(island._hit_test(QPoint(678, 86)), "pill_proc")
+        # Pill 8: SYS (col4_x: 746..874)
+        self.assertEqual(island._hit_test(QPoint(810, 86)), "pill_sys")
         island.close()
 
 

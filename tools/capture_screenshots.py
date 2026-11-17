@@ -63,17 +63,23 @@ def capture_all():
     pix_orb.save(os.path.join(output_dir, "companion_orb.png"))
     print("Saved: companion_orb.png")
 
-    # Island with docked SENTI
+    # Island with docked SENTI (8 subsystem pills)
     from senti_island import TopIslandWindow, GreetingBubbleWidget
     island = TopIslandWindow()
-    island._pill_scales = [1.0, 1.0, 1.0, 1.0]
-    island._pill_alphas = [1.0, 1.0, 1.0, 1.0]
+    island._pill_scales = [1.0] * 8
+    island._pill_alphas = [1.0] * 8
     island.update_telemetry({
         "cpu": 38.0,
         "ram": 54.0,
         "disk": 68.0,
         "temperature_c": 42.0,
         "system_drive": "C:",
+        "gpu_load": 15.0,
+        "net_recv_kb_s": 148.0,
+        "ping_ms": 18.0,
+        "process_count": 184,
+        "battery": 92.0,
+        "uptime_seconds": 18420,
     })
     docked_senti = SentiMascot(island)
     docked_senti.resize(80, 80)
@@ -137,32 +143,41 @@ def capture_all():
     pix_settings.save(os.path.join(output_dir, "settings.png"))
     print("Saved: settings.png")
 
-    # 4. Capture Dedicated Telemetry Dashboard
+    # 4. Capture Dedicated Telemetry Dashboard (showing only dedicated tab with no other tabs)
     from senti_dashboard import SentiDashboardWindow
     from system_monitor import get_system_info
     dash = SentiDashboardWindow()
     dash.update_telemetry(get_system_info())
-    dash.show()
 
-    # Capture CPU tab
-    dash.tabs.setCurrentIndex(0)
+    # Capture CPU dedicated view
+    dash.open_tab("CPU")
     dash.grab().save(os.path.join(output_dir, "dashboard_cpu.png"))
     print("Saved: dashboard_cpu.png")
 
-    # Capture Memory tab
-    dash.tabs.setCurrentIndex(1)
+    # Capture Memory dedicated view
+    dash.open_tab("RAM")
     dash.grab().save(os.path.join(output_dir, "dashboard_memory.png"))
     print("Saved: dashboard_memory.png")
 
-    # Capture Storage tab
-    dash.tabs.setCurrentIndex(2)
+    # Capture Storage dedicated view
+    dash.open_tab("STORAGE")
     dash.grab().save(os.path.join(output_dir, "dashboard_storage.png"))
     print("Saved: dashboard_storage.png")
 
-    # Capture Thermals tab
-    dash.tabs.setCurrentIndex(3)
+    # Capture Thermals dedicated view
+    dash.open_tab("THERMALS")
     dash.grab().save(os.path.join(output_dir, "dashboard_thermals.png"))
     print("Saved: dashboard_thermals.png")
+
+    # Capture GPU dedicated view
+    dash.open_tab("GPU")
+    dash.grab().save(os.path.join(output_dir, "dashboard_gpu.png"))
+    print("Saved: dashboard_gpu.png")
+
+    # Capture Network dedicated view
+    dash.open_tab("NETWORK")
+    dash.grab().save(os.path.join(output_dir, "dashboard_network.png"))
+    print("Saved: dashboard_network.png")
 
     dash.hide()
 

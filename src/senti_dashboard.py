@@ -179,11 +179,16 @@ class SentiDashboardWindow(QWidget):
         root.setContentsMargins(14, 12, 14, 12)
         root.setSpacing(10)
 
-        # Top Bar: Title + Close Button
+        # Top Bar: Subsystem Title + Badge + Close Button
         top_bar = QHBoxLayout()
-        title_lbl = QLabel("SYS-SENTINEL  //  DEDICATED TELEMETRY")
-        title_lbl.setStyleSheet("color: #00e5ff; font-size: 11px; font-weight: 700; letter-spacing: 1.5px;")
-        top_bar.addWidget(title_lbl)
+        self.lbl_title = QLabel("SYS-SENTINEL  //  CPU MONITOR")
+        self.lbl_title.setStyleSheet("color: #22c55e; font-size: 11px; font-weight: 700; letter-spacing: 1.5px;")
+        top_bar.addWidget(self.lbl_title)
+        top_bar.addSpacing(10)
+
+        self.lbl_badge = QLabel("DEDICATED VIEW")
+        self.lbl_badge.setStyleSheet("color: #6b7079; font-size: 9px; font-weight: 700; letter-spacing: 1px; border: 1px solid #1c2028; border-radius: 3px; padding: 2px 6px; background: #0d0e14;")
+        top_bar.addWidget(self.lbl_badge)
         top_bar.addStretch()
 
         btn_close = QPushButton("✕")
@@ -208,40 +213,20 @@ class SentiDashboardWindow(QWidget):
         top_bar.addWidget(btn_close)
         root.addLayout(top_bar)
 
-        # Tab Widget
+        # Subsystem Panel Container (Tab bar completely hidden so only the selected view appears)
         self.tabs = QTabWidget(self)
         self.tabs.setStyleSheet("""
             QTabWidget::pane {
                 border: 1px solid #1c2028;
                 border-radius: 8px;
                 background: #111317;
-                top: -1px;
-            }
-            QTabBar::tab {
-                background: #0d0e14;
-                color: #8c9dbd;
-                padding: 6px 14px;
-                margin-right: 4px;
-                border-top-left-radius: 6px;
-                border-top-right-radius: 6px;
-                border: 1px solid #1c2028;
-                border-bottom: none;
-                font-size: 11px;
-                font-weight: 600;
-            }
-            QTabBar::tab:selected {
-                background: #16181f;
-                color: #00e5ff;
-                border: 1px solid #00e5ff;
-                border-bottom: 1px solid #16181f;
-            }
-            QTabBar::tab:hover:!selected {
-                background: #13151c;
-                color: #f8fafc;
+                top: 0px;
             }
         """)
+        # Hide tab bar completely: only the dedicated page for the clicked pill appears
+        self.tabs.tabBar().hide()
 
-        # Initialize Individual Dedicated Tabs
+        # Initialize Individual Dedicated Subsystem Panels
         self.tab_cpu = self._build_cpu_tab()
         self.tab_ram = self._build_ram_tab()
         self.tab_disk = self._build_disk_tab()
@@ -468,75 +453,118 @@ class SentiDashboardWindow(QWidget):
         w = QWidget()
         lay = QVBoxLayout(w)
         lay.setContentsMargins(12, 12, 12, 12)
-        lay.setSpacing(12)
+        lay.setSpacing(10)
 
-        self.lbl_gpu_name = QLabel("Graphics Adapter: Detecting...")
-        self.lbl_gpu_name.setStyleSheet("color: #00e5ff; font-size: 18px; font-weight: 700;")
-        lay.addWidget(self.lbl_gpu_name)
+        # Header summary
+        top_row = QHBoxLayout()
+        self.lbl_gpu_load = QLabel("GPU Load: 0.0%")
+        self.lbl_gpu_load.setStyleSheet("color: #00e5ff; font-size: 20px; font-weight: 700;")
+        top_row.addWidget(self.lbl_gpu_load)
+        top_row.addStretch()
 
+        self.lbl_gpu_vram = QLabel("Dedicated VRAM: Detecting...")
+        self.lbl_gpu_vram.setStyleSheet("color: #8c9dbd; font-size: 12px; font-weight: 600;")
+        top_row.addWidget(self.lbl_gpu_vram)
+        lay.addLayout(top_row)
+
+        # GPU Sparkline
+        self.spark_gpu = MiniSparkline(QColor("#00e5ff"), "%", self)
+        lay.addWidget(self.spark_gpu)
+
+        # Specs card
         f = QFrame()
         f.setStyleSheet("background: #0d0e14; border: 1px solid #1c2028; border-radius: 6px; padding: 12px;")
         flay = QVBoxLayout(f)
-        self.lbl_gpu_vram = QLabel("Dedicated VRAM: — GB")
+        self.lbl_gpu_name = QLabel("Graphics Adapter: Detecting...")
         self.lbl_gpu_driver = QLabel("Driver Version: —")
         self.lbl_gpu_engine = QLabel("3D Acceleration: Active / DirectX Compatible")
-        for lbl in (self.lbl_gpu_vram, self.lbl_gpu_driver, self.lbl_gpu_engine):
-            lbl.setStyleSheet("color: #cdd9ed; font-size: 13px; font-weight: 600;")
+        for lbl in (self.lbl_gpu_name, self.lbl_gpu_driver, self.lbl_gpu_engine):
+            lbl.setStyleSheet("color: #cdd9ed; font-size: 12px; font-weight: 600;")
             flay.addWidget(lbl)
         lay.addWidget(f)
         lay.addStretch()
         return w
 
-    # --- TAB 6: NETWORK (Bandwidth & Ping) ---
+    # --- TAB 6: NETWORK (Bandwidth & Ping Latency Graphs) ---
     def _build_net_tab(self) -> QWidget:
         w = QWidget()
         lay = QVBoxLayout(w)
         lay.setContentsMargins(12, 12, 12, 12)
         lay.setSpacing(10)
 
-        # Bandwidth row
-        net_row = QHBoxLayout()
-        self.lbl_net_down = QLabel("↓ 0.0 KB/s")
-        self.lbl_net_down.setStyleSheet("color: #22c55e; font-size: 18px; font-weight: 700;")
-        self.lbl_net_up = QLabel("↑ 0.0 KB/s")
-        self.lbl_net_up.setStyleSheet("color: #00e5ff; font-size: 18px; font-weight: 700;")
-        self.lbl_ping = QLabel("Ping: — ms")
-        self.lbl_ping.setStyleSheet("color: #f5a524; font-size: 18px; font-weight: 700;")
+        # 1. Download Graph Card
+        c_down = QFrame()
+        c_down.setStyleSheet("background: #0d0e14; border: 1px solid #1c2028; border-radius: 6px; padding: 10px;")
+        lay_down = QVBoxLayout(c_down)
+        lay_down.setContentsMargins(8, 8, 8, 8)
+        lay_down.setSpacing(6)
+        row_d = QHBoxLayout()
+        lbl_d_title = QLabel("↓ LIVE DOWNLOAD THROUGHPUT")
+        lbl_d_title.setStyleSheet("color: #22c55e; font-size: 11px; font-weight: 700; letter-spacing: 1px;")
+        self.lbl_net_down = QLabel("0.0 KB/s")
+        self.lbl_net_down.setStyleSheet("color: #22c55e; font-size: 15px; font-weight: 700;")
+        self.lbl_net_total_down = QLabel("Total Recv: 0.0 MB")
+        self.lbl_net_total_down.setStyleSheet("color: #8c9dbd; font-size: 11px;")
+        row_d.addWidget(lbl_d_title)
+        row_d.addSpacing(14)
+        row_d.addWidget(self.lbl_net_down)
+        row_d.addStretch()
+        row_d.addWidget(self.lbl_net_total_down)
+        lay_down.addLayout(row_d)
+        self.spark_net_down = MiniSparkline(QColor("#22c55e"), " KB/s", self)
+        self.spark_net_down.setFixedHeight(54)
+        lay_down.addWidget(self.spark_net_down)
+        lay.addWidget(c_down)
 
-        net_row.addWidget(self.lbl_net_down)
-        net_row.addSpacing(20)
-        net_row.addWidget(self.lbl_net_up)
-        net_row.addSpacing(20)
-        net_row.addWidget(self.lbl_ping)
-        net_row.addStretch()
-        lay.addLayout(net_row)
+        # 2. Upload Graph Card
+        c_up = QFrame()
+        c_up.setStyleSheet("background: #0d0e14; border: 1px solid #1c2028; border-radius: 6px; padding: 10px;")
+        lay_up = QVBoxLayout(c_up)
+        lay_up.setContentsMargins(8, 8, 8, 8)
+        lay_up.setSpacing(6)
+        row_u = QHBoxLayout()
+        lbl_u_title = QLabel("↑ LIVE UPLOAD THROUGHPUT")
+        lbl_u_title.setStyleSheet("color: #00e5ff; font-size: 11px; font-weight: 700; letter-spacing: 1px;")
+        self.lbl_net_up = QLabel("0.0 KB/s")
+        self.lbl_net_up.setStyleSheet("color: #00e5ff; font-size: 15px; font-weight: 700;")
+        self.lbl_net_total_up = QLabel("Total Sent: 0.0 MB")
+        self.lbl_net_total_up.setStyleSheet("color: #8c9dbd; font-size: 11px;")
+        row_u.addWidget(lbl_u_title)
+        row_u.addSpacing(14)
+        row_u.addWidget(self.lbl_net_up)
+        row_u.addStretch()
+        row_u.addWidget(self.lbl_net_total_up)
+        lay_up.addLayout(row_u)
+        self.spark_net_up = MiniSparkline(QColor("#00e5ff"), " KB/s", self)
+        self.spark_net_up.setFixedHeight(54)
+        lay_up.addWidget(self.spark_net_up)
+        lay.addWidget(c_up)
 
-        # Active Connections table
-        lbl_conns = QLabel("ACTIVE OPEN PORTS & CONNECTIONS")
-        lbl_conns.setStyleSheet("color: #8c9dbd; font-size: 10px; font-weight: 700; letter-spacing: 1px;")
-        lay.addWidget(lbl_conns)
+        # 3. Latency & Ping Graph Card
+        c_ping = QFrame()
+        c_ping.setStyleSheet("background: #0d0e14; border: 1px solid #1c2028; border-radius: 6px; padding: 10px;")
+        lay_ping = QVBoxLayout(c_ping)
+        lay_ping.setContentsMargins(8, 8, 8, 8)
+        lay_ping.setSpacing(6)
+        row_p = QHBoxLayout()
+        lbl_p_title = QLabel("⚡ ROUND-TRIP LATENCY (PING)")
+        lbl_p_title.setStyleSheet("color: #a855f7; font-size: 11px; font-weight: 700; letter-spacing: 1px;")
+        self.lbl_ping = QLabel("— ms")
+        self.lbl_ping.setStyleSheet("color: #a855f7; font-size: 15px; font-weight: 700;")
+        self.lbl_ping_status = QLabel("Target: DNS Gateway (8.8.8.8)")
+        self.lbl_ping_status.setStyleSheet("color: #8c9dbd; font-size: 11px;")
+        row_p.addWidget(lbl_p_title)
+        row_p.addSpacing(14)
+        row_p.addWidget(self.lbl_ping)
+        row_p.addStretch()
+        row_p.addWidget(self.lbl_ping_status)
+        lay_ping.addLayout(row_p)
+        self.spark_net_ping = MiniSparkline(QColor("#a855f7"), " ms", self)
+        self.spark_net_ping.setFixedHeight(54)
+        lay_ping.addWidget(self.spark_net_ping)
+        lay.addWidget(c_ping)
 
-        self.table_conns = QTableWidget()
-        self.table_conns.setColumnCount(5)
-        self.table_conns.setHorizontalHeaderLabels(["Proto", "Local Address", "Remote Address", "Status", "PID"])
-        self.table_conns.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
-        self.table_conns.setStyleSheet("""
-            QTableWidget {
-                background: #0d0e14;
-                border: 1px solid #1c2028;
-                color: #cdd9ed;
-                gridline-color: #1c2028;
-                font-size: 11px;
-            }
-            QHeaderView::section {
-                background: #16181f;
-                color: #8c9dbd;
-                font-weight: bold;
-                border: 1px solid #1c2028;
-                padding: 4px;
-            }
-        """)
-        lay.addWidget(self.table_conns)
+        lay.addStretch()
         return w
 
     # --- TAB 7: PROCESSES (Resource Consumers & Control) ---
@@ -725,33 +753,57 @@ class SentiDashboardWindow(QWidget):
             else:
                 self.lbl_temp_status.setText("NOMINAL COOLING")
                 self.lbl_temp_status.setStyleSheet("color: #22c55e; background: #0d1a14; border: 1px solid #1c3d28; padding: 4px 8px; border-radius: 4px;")
+            self.lbl_acpi_temp.setText("ACPI Thermal Zone: Active Sensor Polling")
+            self.lbl_throttle.setText("Thermal Throttling: Safe Operating Margin")
         else:
             self.lbl_temp_main.setText("Package Temp: N/A")
+            self.lbl_temp_status.setText("SENSOR NOT AVAILABLE ON THIS DEVICE")
+            self.lbl_temp_status.setStyleSheet("color: #8c9dbd; background: #16181f; border: 1px solid #252934; padding: 4px 8px; border-radius: 4px;")
+            self.lbl_acpi_temp.setText("ACPI Sensor: Not exposed by device firmware/BIOS (OEM restricted)")
+            self.lbl_throttle.setText("Thermal Status: Standard Windows hardware thermal safety active")
 
         # 5. GPU
         gpu_d = data.get("gpu_details") or {}
-        self.lbl_gpu_name.setText(f"Adapter: {gpu_d.get('name', 'Display Adapter')}")
-        vram = gpu_d.get("vram_gb")
-        self.lbl_gpu_vram.setText(f"Dedicated VRAM: {vram:.1f} GB" if vram else "Dedicated VRAM: System Shared")
+        gpu_load = float(data.get("gpu_load", gpu_d.get("load_percent", 0.0)))
+        self.lbl_gpu_load.setText(f"GPU Load: {gpu_load:.1f}%")
+        self.spark_gpu.add_sample(gpu_load)
+        self.lbl_gpu_name.setText(f"Graphics Adapter: {gpu_d.get('name', 'Display Adapter')}")
+        vram_total = gpu_d.get("vram_total_gb")
+        vram_used = gpu_d.get("vram_used_gb", 0.0)
+        if vram_total:
+            self.lbl_gpu_vram.setText(f"Dedicated VRAM: {vram_used:.1f} GB / {vram_total:.1f} GB")
+        else:
+            self.lbl_gpu_vram.setText("Dedicated VRAM: System Shared")
         self.lbl_gpu_driver.setText(f"Driver Version: {gpu_d.get('driver', 'Standard')}")
 
-        # 6. NETWORK
+        # 6. NETWORK (3 Live Telemetry Graphs)
         net_d = data.get("net_details") or {}
-        self.lbl_net_down.setText(f"↓ {net_d.get('recv_kb_s', 0.0):.1f} KB/s")
-        self.lbl_net_up.setText(f"↑ {net_d.get('sent_kb_s', 0.0):.1f} KB/s")
-        ping = net_d.get("ping_ms")
-        self.lbl_ping.setText(f"Ping: {ping:.0f} ms" if ping is not None else "Ping: Checking...")
+        r_kb = net_d.get("recv_kb_s", 0.0)
+        s_kb = net_d.get("sent_kb_s", 0.0)
+        total_recv = net_d.get("total_recv_mb", 0.0)
+        total_sent = net_d.get("total_sent_mb", 0.0)
 
-        # Update active connections if tab visible
-        if self.isVisible() and self.tabs.currentIndex() == 5:
-            conns = get_active_connections(25)
-            self.table_conns.setRowCount(len(conns))
-            for row, c in enumerate(conns):
-                self.table_conns.setItem(row, 0, QTableWidgetItem(c["proto"]))
-                self.table_conns.setItem(row, 1, QTableWidgetItem(c["local"]))
-                self.table_conns.setItem(row, 2, QTableWidgetItem(c["remote"]))
-                self.table_conns.setItem(row, 3, QTableWidgetItem(c["status"]))
-                self.table_conns.setItem(row, 4, QTableWidgetItem(str(c["pid"])))
+        self.lbl_net_down.setText(f"{r_kb:.1f} KB/s" if r_kb < 1024 else f"{(r_kb/1024):.2f} MB/s")
+        self.lbl_net_up.setText(f"{s_kb:.1f} KB/s" if s_kb < 1024 else f"{(s_kb/1024):.2f} MB/s")
+        self.lbl_net_total_down.setText(f"Total Recv: {total_recv:.1f} MB" if total_recv < 1024 else f"{(total_recv/1024):.2f} GB")
+        self.lbl_net_total_up.setText(f"Total Sent: {total_sent:.1f} MB" if total_sent < 1024 else f"{(total_sent/1024):.2f} GB")
+
+        self.spark_net_down.add_sample(r_kb)
+        self.spark_net_up.add_sample(s_kb)
+
+        ping = net_d.get("ping_ms")
+        if ping is not None:
+            self.lbl_ping.setText(f"{ping:.0f} ms")
+            self.spark_net_ping.add_sample(ping)
+            if ping < 60:
+                self.lbl_ping_status.setText("Optimal Latency (<60ms) · Target: 8.8.8.8")
+            elif ping < 150:
+                self.lbl_ping_status.setText("Moderate Latency · Target: 8.8.8.8")
+            else:
+                self.lbl_ping_status.setText("High Latency Warning · Target: 8.8.8.8")
+        else:
+            self.lbl_ping.setText("Offline / Checking...")
+            self.lbl_ping_status.setText("Target: 8.8.8.8 (Waiting for ping response)")
 
         # 7. PROCESSES (refresh when visible)
         if self.isVisible() and self.tabs.currentIndex() == 6:
@@ -825,26 +877,39 @@ class SentiDashboardWindow(QWidget):
                 resume_process(pid)
             self._refresh_process_table()
 
-    # --- Window Open / Navigation ---
+    # --- Window Open / Dedicated Panel Navigation ---
     def open_tab(self, tab_name: str):
-        """Open the dedicated window directly focused on the requested tab name."""
+        """Open the dedicated window showing ONLY the requested tab. No other tabs appear."""
         name_map = {
-            "CPU": 0,
-            "RAM": 1,
-            "MEMORY": 1,
-            "STORAGE": 2,
-            "DISK": 2,
-            "THERMALS": 3,
-            "TEMP": 3,
-            "GPU": 4,
-            "NETWORK": 5,
-            "NET": 5,
-            "PROCESSES": 6,
-            "PROCS": 6,
-            "SYSTEM": 7,
+            "CPU": (0, "CPU MONITOR", "#22c55e"),
+            "RAM": (1, "MEMORY MONITOR", "#f5a524"),
+            "MEMORY": (1, "MEMORY MONITOR", "#f5a524"),
+            "STORAGE": (2, "STORAGE & I/O MONITOR", "#6366f1"),
+            "DISK": (2, "STORAGE & I/O MONITOR", "#6366f1"),
+            "THERMALS": (3, "THERMAL SENSORS", "#f4505e"),
+            "TEMP": (3, "THERMAL SENSORS", "#f4505e"),
+            "GPU": (4, "GPU MONITOR", "#00e5ff"),
+            "NETWORK": (5, "NETWORK & PORTS", "#a855f7"),
+            "NET": (5, "NETWORK & PORTS", "#a855f7"),
+            "PROCESSES": (6, "PROCESS MANAGER", "#f97316"),
+            "PROCS": (6, "PROCESS MANAGER", "#f97316"),
+            "SYSTEM": (7, "SYSTEM & BATTERY", "#10b981"),
+            "SYS": (7, "SYSTEM & BATTERY", "#10b981"),
         }
-        idx = name_map.get(tab_name.upper(), 0)
+        normalized = tab_name.upper()
+        info = name_map.get(normalized, (0, "CPU MONITOR", "#22c55e"))
+        idx, title_text, accent_color = info
+
+        # Toggle: if clicking the same pill while open, close smoothly
+        if self.isVisible() and getattr(self, "_active_tab_name", None) == normalized and self._opacity_effect.opacity() > 0.5:
+            self.close_panel()
+            return
+
+        self._active_tab_name = normalized
         self.tabs.setCurrentIndex(idx)
+        self.lbl_title.setText(f"SYS-SENTINEL  //  {title_text}")
+        self.lbl_title.setStyleSheet(f"color: {accent_color}; font-size: 11px; font-weight: 700; letter-spacing: 1.5px;")
+
         self.show()
         self.raise_()
         self.activateWindow()

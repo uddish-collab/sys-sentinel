@@ -328,7 +328,18 @@ def get_system_info(temp_monitor: Optional[TemperatureMonitor] = None) -> Dict[s
     snapshot["ram_details"] = get_detailed_ram_info()
     snapshot["disk_details"] = get_detailed_disk_info()
     snapshot["net_details"] = get_detailed_net_info()
-    snapshot["gpu_details"] = get_detailed_gpu_info()
+    gpu_d = get_detailed_gpu_info()
+    snapshot["gpu_details"] = gpu_d
+    snapshot["gpu_load"] = gpu_d.get("load_percent", 0.0)
+    snapshot["gpu_vram_gb"] = gpu_d.get("vram_total_gb")
+    snapshot["gpu_vram_used_gb"] = gpu_d.get("vram_used_gb", 0.0)
+
+    # Subsystem fast scalars for pills
+    net_d = snapshot["net_details"]
+    snapshot["net_recv_kb_s"] = net_d.get("recv_kb_s", 0.0)
+    snapshot["net_sent_kb_s"] = net_d.get("sent_kb_s", 0.0)
+    snapshot["ping_ms"] = net_d.get("ping_ms")
+    snapshot["process_count"] = snapshot["cpu_stats"].get("process_count", 0)
 
     return snapshot
 
@@ -339,7 +350,6 @@ _last_disk_counters = None
 _last_disk_timestamp = 0.0
 _last_net_counters = None
 _last_net_timestamp = 0.0
-_cached_gpu_info = None
 _last_ping_ms = None
 _last_ping_time = 0.0
 
@@ -542,43 +552,178 @@ def get_detailed_net_info() -> Dict[str, Any]:
     return info
 
 
-def get_detailed_gpu_info() -> Dict[str, Any]:
-    """Return GPU adapter name, dedicated VRAM, and driver version."""
-    global _cached_gpu_info
-    if _cached_gpu_info is not None:
-        return _cached_gpu_info
+class GpuMonitor:
+    """Background daemon querying live GPU utilization and VRAM in real-time.
+    
+    Supports:
+    - Direct NVML via ctypes for NVIDIA hardware (instant, sub-millisecond).
+    - Windows CIM Performance Counters (Win32_PerfFormattedData_GPUPerformanceCounters_GPUEngine).
+    - Controller specs and dedicated VRAM from Win32_VideoController.
+    Runs strictly off the main thread to ensure 0% UI latency.
+    """
 
-    info = {
-        "name": "Generic Display Adapter",
-        "vram_gb": None,
-        "driver": "Standard Driver",
-    }
+    def __init__(self):
+        self._lock = threading.Lock()
+        self._stats: Dict[str, Any] = {
+            "load_percent": 0.0,
+            "vram_used_gb": 0.0,
+            "vram_total_gb": None,
+            "name": "Generic Display Adapter",
+            "driver": "Standard Driver",
+        }
+        self._has_nvml = False
+        self._nvml_lib = None
+        self._nvml_device = None
+        self._stop_event = threading.Event()
+        self._thread: Optional[threading.Thread] = None
+        self._init_nvml()
+        self._init_adapter_specs()
 
-    if sys.platform == "win32":
+    def _init_nvml(self):
+        if sys.platform != "win32":
+            return
         try:
-            # Fast query via PowerShell CIM
+            import ctypes
+            nvml = ctypes.windll.LoadLibrary("nvml.dll")
+            if nvml.nvmlInit_v2() == 0:
+                dev = ctypes.c_void_p()
+                if nvml.nvmlDeviceGetHandleByIndex_v2(0, ctypes.byref(dev)) == 0:
+                    self._nvml_lib = nvml
+                    self._nvml_device = dev
+                    self._has_nvml = True
+        except Exception:
+            self._has_nvml = False
+
+    def _init_adapter_specs(self):
+        if sys.platform != "win32":
+            return
+        try:
             cmd = "Get-CimInstance Win32_VideoController | Select-Object -First 1 Name, AdapterRAM, DriverVersion | ConvertTo-Json"
             proc = subprocess.run(
                 ["powershell", "-NoProfile", "-NonInteractive", "-Command", cmd],
                 capture_output=True,
                 text=True,
-                timeout=2.0,
+                timeout=3.0,
                 creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
             )
             if proc.returncode == 0 and proc.stdout.strip():
                 import json
                 data = json.loads(proc.stdout)
                 if isinstance(data, dict):
-                    info["name"] = data.get("Name") or info["name"]
-                    ram = data.get("AdapterRAM")
-                    if ram and isinstance(ram, (int, float)):
-                        info["vram_gb"] = round(ram / (1024 ** 3), 1)
-                    info["driver"] = data.get("DriverVersion") or info["driver"]
+                    with self._lock:
+                        if data.get("Name"):
+                            self._stats["name"] = data["Name"]
+                        ram = data.get("AdapterRAM")
+                        if ram and isinstance(ram, (int, float)):
+                            self._stats["vram_total_gb"] = round(ram / (1024 ** 3), 1)
+                        if data.get("DriverVersion"):
+                            self._stats["driver"] = data["DriverVersion"]
         except Exception:
             pass
 
-    _cached_gpu_info = info
-    return info
+    def start(self):
+        if self._thread is None or not self._thread.is_alive():
+            self._stop_event.clear()
+            self._thread = threading.Thread(
+                target=self._worker_loop,
+                name="SentiGpuMonitor",
+                daemon=True,
+            )
+            self._thread.start()
+
+    def stop(self):
+        self._stop_event.set()
+        if self._thread and self._thread.is_alive():
+            self._thread.join(timeout=1.0)
+
+    def _worker_loop(self):
+        while not self._stop_event.is_set():
+            self._poll_once()
+            self._stop_event.wait(timeout=2.0)
+
+    def _poll_once(self):
+        # 1. Direct NVML for NVIDIA
+        if self._has_nvml and self._nvml_device:
+            try:
+                import ctypes
+                class nvmlUtilization_t(ctypes.Structure):
+                    _fields_ = [("gpu", ctypes.c_uint), ("memory", ctypes.c_uint)]
+                class nvmlMemory_t(ctypes.Structure):
+                    _fields_ = [("total", ctypes.c_ulonglong), ("free", ctypes.c_ulonglong), ("used", ctypes.c_ulonglong)]
+
+                utils = nvmlUtilization_t()
+                if self._nvml_lib.nvmlDeviceGetUtilizationRates(self._nvml_device, ctypes.byref(utils)) == 0:
+                    mem = nvmlMemory_t()
+                    self._nvml_lib.nvmlDeviceGetMemoryInfo(self._nvml_device, ctypes.byref(mem))
+                    with self._lock:
+                        self._stats["load_percent"] = float(utils.gpu)
+                        self._stats["vram_used_gb"] = round(mem.used / (1024 ** 3), 2)
+                        self._stats["vram_total_gb"] = round(mem.total / (1024 ** 3), 1)
+                    return
+            except Exception:
+                pass
+
+        # 2. Windows CIM GPU Performance Counters (Intel, AMD, Standard)
+        if sys.platform == "win32":
+            try:
+                cmd = (
+                    "Get-CimInstance Win32_PerfFormattedData_GPUPerformanceCounters_GPUEngine -ErrorAction SilentlyContinue | "
+                    "Measure-Object -Property UtilizationPercentage -Sum | Select-Object -ExpandProperty Sum"
+                )
+                proc = subprocess.run(
+                    ["powershell", "-NoProfile", "-NonInteractive", "-Command", cmd],
+                    capture_output=True,
+                    text=True,
+                    timeout=2.5,
+                    creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+                )
+                if proc.returncode == 0 and proc.stdout.strip():
+                    val = float(proc.stdout.strip())
+                    with self._lock:
+                        self._stats["load_percent"] = min(100.0, max(0.0, val))
+
+                # Local VRAM Usage
+                cmd_vram = (
+                    "Get-CimInstance Win32_PerfFormattedData_GPUPerformanceCounters_GPULocalAdapterMemory -ErrorAction SilentlyContinue | "
+                    "Measure-Object -Property LocalUsage -Sum | Select-Object -ExpandProperty Sum"
+                )
+                proc_vram = subprocess.run(
+                    ["powershell", "-NoProfile", "-NonInteractive", "-Command", cmd_vram],
+                    capture_output=True,
+                    text=True,
+                    timeout=2.5,
+                    creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+                )
+                if proc_vram.returncode == 0 and proc_vram.stdout.strip():
+                    v_bytes = float(proc_vram.stdout.strip())
+                    with self._lock:
+                        self._stats["vram_used_gb"] = round(v_bytes / (1024 ** 3), 2)
+            except Exception:
+                pass
+
+    def get_stats(self) -> Dict[str, Any]:
+        with self._lock:
+            return dict(self._stats)
+
+
+_gpu_monitor: Optional[GpuMonitor] = None
+_gpu_monitor_lock = threading.Lock()
+
+
+def get_gpu_monitor() -> GpuMonitor:
+    """Return the global GpuMonitor daemon instance."""
+    global _gpu_monitor
+    with _gpu_monitor_lock:
+        if _gpu_monitor is None:
+            _gpu_monitor = GpuMonitor()
+            _gpu_monitor.start()
+        return _gpu_monitor
+
+
+def get_detailed_gpu_info() -> Dict[str, Any]:
+    """Return live GPU utilization, dedicated VRAM, adapter name, and driver version."""
+    monitor = get_gpu_monitor()
+    return monitor.get_stats()
 
 
 def get_top_processes(limit: int = 15, sort_by: str = "cpu") -> List[Dict[str, Any]]:

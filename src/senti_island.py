@@ -186,8 +186,8 @@ class TopIslandWindow(QWidget):
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         self.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating)
 
-        # Minimalist 640 x 136 layout (clean dual-card design without top header bar)
-        self.setFixedSize(640, 136)
+        # Minimalist 892 x 136 layout (clean dual-card design with 8 subsystem pills)
+        self.setFixedSize(892, 136)
 
         # Telemetry data
         self._telemetry: Dict[str, Any] = {
@@ -196,6 +196,12 @@ class TopIslandWindow(QWidget):
             "disk": 0.0,
             "temperature_c": None,
             "system_drive": "C:",
+            "gpu_load": 0.0,
+            "net_recv_kb_s": 0.0,
+            "ping_ms": None,
+            "process_count": 0,
+            "battery": None,
+            "uptime_seconds": 0,
         }
 
         # Dragging state
@@ -207,9 +213,9 @@ class TopIslandWindow(QWidget):
         self._hover_target: Optional[str] = None
         self.setMouseTracking(True)
 
-        # Pill entrance animations (scale, opacity) - hidden initially until Senti docks
-        self._pill_scales = [0.0, 0.0, 0.0, 0.0]
-        self._pill_alphas = [0.0, 0.0, 0.0, 0.0]
+        # Pill entrance animations (scale, opacity) for all 8 pills
+        self._pill_scales = [0.0] * 8
+        self._pill_alphas = [0.0] * 8
         self._pill_timers: List[QTimer] = []
 
         # Opacity animation for hide/show
@@ -221,18 +227,18 @@ class TopIslandWindow(QWidget):
         self._fade_anim.setEasingCurve(QEasingCurve.Type.InOutCubic)
 
     def animate_pills_entrance(self, on_pill_pop: Optional[Callable[[], None]] = None):
-        """Smooth staggered spring entrance for the 4 metric pills."""
-        self._pill_scales = [0.0, 0.0, 0.0, 0.0]
-        self._pill_alphas = [0.0, 0.0, 0.0, 0.0]
+        """Smooth staggered spring entrance for all 8 subsystem metric pills."""
+        self._pill_scales = [0.0] * 8
+        self._pill_alphas = [0.0] * 8
         self.update()
 
         for timer in list(self._pill_timers):
             timer.stop()
         self._pill_timers.clear()
 
-        # Staggered pop-in for each pill (70ms apart)
-        for i in range(4):
-            delay_ms = i * 70
+        # Staggered pop-in for each of the 8 pills (45ms apart)
+        for i in range(8):
+            delay_ms = i * 45
             t = QTimer(self)
             t.setSingleShot(True)
             t.setInterval(delay_ms)
@@ -286,6 +292,12 @@ class TopIslandWindow(QWidget):
         self._telemetry["disk"] = data.get("disk", 0.0)
         self._telemetry["temperature_c"] = data.get("temperature_c")
         self._telemetry["system_drive"] = data.get("system_drive", "C:")
+        self._telemetry["gpu_load"] = data.get("gpu_load", 0.0)
+        self._telemetry["net_recv_kb_s"] = data.get("net_recv_kb_s", 0.0)
+        self._telemetry["ping_ms"] = data.get("ping_ms")
+        self._telemetry["process_count"] = data.get("process_count", 0)
+        self._telemetry["battery"] = data.get("battery")
+        self._telemetry["uptime_seconds"] = data.get("uptime_seconds", 0)
         self.update()
 
     # --- Mouse & Interaction ---
@@ -293,24 +305,30 @@ class TopIslandWindow(QWidget):
     def _hit_test(self, pos: QPoint) -> Optional[str]:
         px, py = pos.x(), pos.y()
 
-        # Dedicated Pill 1: CPU (col1_x: 350..484, row1_y: 34..62)
-        if 32 <= py <= 64 and 348 <= px <= 486:
-            return "pill_cpu"
+        # Row 1 (y: 26..62)
+        if 26 <= py <= 62:
+            if 350 <= px <= 478:
+                return "pill_cpu"
+            elif 482 <= px <= 610:
+                return "pill_ram"
+            elif 614 <= px <= 742:
+                return "pill_gpu"
+            elif 746 <= px <= 874:
+                return "pill_net"
 
-        # Dedicated Pill 2: RAM (col2_x: 488..622, row1_y: 34..62)
-        if 32 <= py <= 64 and 486 <= px <= 624:
-            return "pill_ram"
-
-        # Dedicated Pill 3: DISK (col1_x: 350..484, row2_y: 74..102)
-        if 72 <= py <= 104 and 348 <= px <= 486:
-            return "pill_disk"
-
-        # Dedicated Pill 4: TEMP (col2_x: 488..622, row2_y: 74..102)
-        if 72 <= py <= 104 and 486 <= px <= 624:
-            return "pill_temp"
+        # Row 2 (y: 68..104)
+        if 68 <= py <= 104:
+            if 350 <= px <= 478:
+                return "pill_disk"
+            elif 482 <= px <= 610:
+                return "pill_temp"
+            elif 614 <= px <= 742:
+                return "pill_proc"
+            elif 746 <= px <= 874:
+                return "pill_sys"
 
         # Card 2 pills container fallback
-        if 10 <= py <= 126 and 342 <= px <= 630:
+        if 10 <= py <= 126 and 342 <= px <= 882:
             return "hud"
 
         return None
@@ -328,12 +346,24 @@ class TopIslandWindow(QWidget):
             elif hit == "pill_ram":
                 if self.on_open_tab:
                     self.on_open_tab("RAM")
+            elif hit == "pill_gpu":
+                if self.on_open_tab:
+                    self.on_open_tab("GPU")
+            elif hit == "pill_net":
+                if self.on_open_tab:
+                    self.on_open_tab("NETWORK")
             elif hit == "pill_disk":
                 if self.on_open_tab:
                     self.on_open_tab("STORAGE")
             elif hit == "pill_temp":
                 if self.on_open_tab:
                     self.on_open_tab("THERMALS")
+            elif hit == "pill_proc":
+                if self.on_open_tab:
+                    self.on_open_tab("PROCESSES")
+            elif hit == "pill_sys":
+                if self.on_open_tab:
+                    self.on_open_tab("SYSTEM")
             elif hit in ("home", "plus", "hud"):
                 if self.on_open_tab:
                     self.on_open_tab("CPU")
@@ -446,38 +476,73 @@ class TopIslandWindow(QWidget):
         p.drawRoundedRect(c1_rect, 20.0, 20.0)
 
     def _paint_card_2(self, p: QPainter):
-        """Paint Card 2 (Right: 288x116, radius 20, solid dark matte #111317)."""
-        c2_rect = QRectF(342.0, 10.0, 288.0, 116.0)
+        """Paint Card 2 (Right: 540x116, radius 20, solid dark matte #111317, 8 pills in 4x2 grid)."""
+        c2_rect = QRectF(342.0, 10.0, 540.0, 116.0)
         p.setPen(QPen(QColor("#1c2028"), 1.0))
         p.setBrush(QColor("#111317"))
         p.drawRoundedRect(c2_rect, 20.0, 20.0)
 
-        # Telemetry values
+        # 1. Telemetry values
         cpu_val = self._telemetry.get("cpu", 0.0)
         ram_val = self._telemetry.get("ram", 0.0)
+        gpu_val = self._telemetry.get("gpu_load", 0.0)
+        recv_kb = self._telemetry.get("net_recv_kb_s", 0.0)
+        ping = self._telemetry.get("ping_ms")
         disk_val = self._telemetry.get("disk", 0.0)
         temp_val = self._telemetry.get("temperature_c")
+        proc_val = self._telemetry.get("process_count", 0)
+        bat_val = self._telemetry.get("battery")
         sys_drive = self._telemetry.get("system_drive", "C:")
         if sys_drive.endswith("\\"):
             sys_drive = sys_drive[:-1]
 
+        # Formatters
+        if recv_kb >= 1.0:
+            net_str = f"{recv_kb:.0f}K/s" if recv_kb < 1024 else f"{(recv_kb/1024):.1f}M"
+        elif ping is not None:
+            net_str = f"{ping:.0f}ms"
+        else:
+            net_str = "0 K/s"
+
         temp_str = f"{temp_val:.0f}°C" if temp_val is not None else "N/A"
 
-        col1_x = 350.0
-        col2_x = 488.0
-        row1_y = 34.0
-        row2_y = 74.0
-        pw = 134.0
-        ph = 28.0
+        if bat_val is not None:
+            bat_label = "BAT"
+            bat_str = f"{bat_val:.0f}%"
+        else:
+            bat_label = "SYS"
+            uptime_s = self._telemetry.get("uptime_seconds", 0)
+            hours = uptime_s / 3600.0
+            bat_str = f"{hours:.1f}h" if hours < 24 else f"{(hours/24):.1f}d"
 
+        col1_x = 352.0
+        col2_x = 484.0
+        col3_x = 616.0
+        col4_x = 748.0
+        row1_y = 28.0
+        row2_y = 70.0
+        pw = 124.0
+        ph = 30.0
+
+        # Row 1
         # Pill 1: CPU (Emerald #22c55e)
         self._paint_pill(p, col1_x, row1_y, pw, ph, QColor("#22c55e"), "CPU", f"{cpu_val:.0f}%", self._pill_scales[0], self._pill_alphas[0])
         # Pill 2: RAM (Amber #f5a524)
         self._paint_pill(p, col2_x, row1_y, pw, ph, QColor("#f5a524"), "RAM", f"{ram_val:.0f}%", self._pill_scales[1], self._pill_alphas[1])
-        # Pill 3: DISK (Indigo #6366f1)
-        self._paint_pill(p, col1_x, row2_y, pw, ph, QColor("#6366f1"), f"{sys_drive} DISK", f"{disk_val:.0f}%", self._pill_scales[2], self._pill_alphas[2])
-        # Pill 4: TEMP (Red/Rose #f4505e)
-        self._paint_pill(p, col2_x, row2_y, pw, ph, QColor("#f4505e"), "TEMP", temp_str, self._pill_scales[3], self._pill_alphas[3])
+        # Pill 3: GPU (Cyan #00e5ff)
+        self._paint_pill(p, col3_x, row1_y, pw, ph, QColor("#00e5ff"), "GPU", f"{gpu_val:.0f}%", self._pill_scales[2], self._pill_alphas[2])
+        # Pill 4: NET (Violet #a855f7)
+        self._paint_pill(p, col4_x, row1_y, pw, ph, QColor("#a855f7"), "NET", net_str, self._pill_scales[3], self._pill_alphas[3])
+
+        # Row 2
+        # Pill 5: DISK (Indigo #6366f1)
+        self._paint_pill(p, col1_x, row2_y, pw, ph, QColor("#6366f1"), "DISK", f"{disk_val:.0f}%", self._pill_scales[4], self._pill_alphas[4])
+        # Pill 6: TEMP (Red/Rose #f4505e)
+        self._paint_pill(p, col2_x, row2_y, pw, ph, QColor("#f4505e"), "TEMP", temp_str, self._pill_scales[5], self._pill_alphas[5])
+        # Pill 7: PROC (Orange #f97316)
+        self._paint_pill(p, col3_x, row2_y, pw, ph, QColor("#f97316"), "PROC", f"{proc_val}", self._pill_scales[6], self._pill_alphas[6])
+        # Pill 8: BAT / SYS (Lime #10b981)
+        self._paint_pill(p, col4_x, row2_y, pw, ph, QColor("#10b981"), bat_label, bat_str, self._pill_scales[7], self._pill_alphas[7])
 
     def _paint_pill(
         self,
@@ -510,31 +575,31 @@ class TopIslandWindow(QWidget):
         p.setBrush(QColor("#16181f"))
         p.drawRoundedRect(rect, 14.0, 14.0)
 
-        # Mini badge (.mini: 22x19, radius 6px)
-        bx, by, bw, bh = px + 6.0, py + 4.5, 22.0, 19.0
+        # Mini badge (.mini: 20x19, radius 6px)
+        bx, by, bw, bh = px + 6.0, py + 5.5, 20.0, 19.0
         p.setPen(Qt.PenStyle.NoPen)
         p.setBrush(badge_color)
         p.drawRoundedRect(QRectF(bx, by, bw, bh), 6.0, 6.0)
 
         # Two little black dot eyes
         p.setBrush(QColor("#000000"))
-        p.drawEllipse(QPointF(bx + 7.0, by + 9.5), 1.8, 2.3)
-        p.drawEllipse(QPointF(bx + 15.0, by + 9.5), 1.8, 2.3)
+        p.drawEllipse(QPointF(bx + 6.0, by + 9.5), 1.7, 2.2)
+        p.drawEllipse(QPointF(bx + 14.0, by + 9.5), 1.7, 2.2)
 
         # Label (.lbl)
-        p.setFont(QFont("Segoe UI", 8, QFont.Weight.DemiBold))
+        p.setFont(QFont("Segoe UI", 7.5, QFont.Weight.DemiBold))
         p.setPen(QColor("#6b7079"))
         p.drawText(
-            QRectF(bx + bw + 8, py, 44, ph),
+            QRectF(bx + bw + 6, py, 42, ph),
             Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft,
             label,
         )
 
         # Value
-        p.setFont(QFont("Segoe UI", 8.5, QFont.Weight.Bold))
+        p.setFont(QFont("Segoe UI", 8.0, QFont.Weight.Bold))
         p.setPen(QColor("#f5f6f8"))
         p.drawText(
-            QRectF(px, py, pw - 10, ph),
+            QRectF(px, py, pw - 8, ph),
             Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignRight,
             val_str,
         )
