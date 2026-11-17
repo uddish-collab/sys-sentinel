@@ -41,6 +41,7 @@ class TestCompanionAndIsland(unittest.TestCase):
         companion.close()
         controller.island.close()
         controller.hud.close()
+        controller.dashboard.close()
         controller.control_win.close()
 
     def test_island_dock_target_pos(self):

@@ -164,6 +164,7 @@ class TopIslandWindow(QWidget):
         on_refresh: Optional[Callable[[], None]] = None,
         on_toggle_sound: Optional[Callable[[], None]] = None,
         is_sound_enabled_getter: Optional[Callable[[], bool]] = None,
+        on_open_tab: Optional[Callable[[str], None]] = None,
         parent: Optional[QWidget] = None,
     ):
         super().__init__(parent)
@@ -173,6 +174,7 @@ class TopIslandWindow(QWidget):
         self.on_refresh = on_refresh
         self.on_toggle_sound = on_toggle_sound
         self.is_sound_enabled_getter = is_sound_enabled_getter
+        self.on_open_tab = on_open_tab
 
         # Windows Tool window attributes: Frameless, Always on Top, Never steals keyboard focus
         self.setWindowFlags(
@@ -291,7 +293,23 @@ class TopIslandWindow(QWidget):
     def _hit_test(self, pos: QPoint) -> Optional[str]:
         px, py = pos.x(), pos.y()
 
-        # Card 2 pills area (y: 10..126, x: 342..630) -> Click opens HUD
+        # Dedicated Pill 1: CPU (col1_x: 350..484, row1_y: 34..62)
+        if 32 <= py <= 64 and 348 <= px <= 486:
+            return "pill_cpu"
+
+        # Dedicated Pill 2: RAM (col2_x: 488..622, row1_y: 34..62)
+        if 32 <= py <= 64 and 486 <= px <= 624:
+            return "pill_ram"
+
+        # Dedicated Pill 3: DISK (col1_x: 350..484, row2_y: 74..102)
+        if 72 <= py <= 104 and 348 <= px <= 486:
+            return "pill_disk"
+
+        # Dedicated Pill 4: TEMP (col2_x: 488..622, row2_y: 74..102)
+        if 72 <= py <= 104 and 486 <= px <= 624:
+            return "pill_temp"
+
+        # Card 2 pills container fallback
         if 10 <= py <= 126 and 342 <= px <= 630:
             return "hud"
 
@@ -304,8 +322,22 @@ class TopIslandWindow(QWidget):
             self._is_dragging = False
 
             hit = self._hit_test(event.pos())
-            if hit in ("home", "plus", "hud"):
-                if self.on_toggle_hud:
+            if hit == "pill_cpu":
+                if self.on_open_tab:
+                    self.on_open_tab("CPU")
+            elif hit == "pill_ram":
+                if self.on_open_tab:
+                    self.on_open_tab("RAM")
+            elif hit == "pill_disk":
+                if self.on_open_tab:
+                    self.on_open_tab("STORAGE")
+            elif hit == "pill_temp":
+                if self.on_open_tab:
+                    self.on_open_tab("THERMALS")
+            elif hit in ("home", "plus", "hud"):
+                if self.on_open_tab:
+                    self.on_open_tab("CPU")
+                elif self.on_toggle_hud:
                     self.on_toggle_hud()
             elif hit == "chat":
                 if self.on_trigger_greeting:

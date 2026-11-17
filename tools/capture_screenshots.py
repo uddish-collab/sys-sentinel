@@ -126,38 +126,45 @@ def capture_all():
     pix_hud.save(os.path.join(output_dir, "hud.png"))
     print("Saved: hud.png")
 
-    # 3. Capture Control Window: Graphs tab & Settings tab
+    # 3. Capture Settings Window
     settings = SentiSettings()
     settings.reset_colors()
-    import time
-    now = time.time()
-    hist_map = {
-        "cpu": MetricHistory(900),
-        "ram": MetricHistory(900),
-        "disk": MetricHistory(900),
-        "temperature_c": MetricHistory(900),
-    }
-    # Populate mock historical data for realistic graph rendering
-    import math
-    for i in range(120):
-        t = now - (120 - i)
-        hist_map["cpu"].append(35.0 + 20.0 * math.sin(i / 10.0), timestamp=t)
-        hist_map["ram"].append(50.0 + 5.0 * math.cos(i / 15.0), timestamp=t)
-        hist_map["disk"].append(68.0, timestamp=t)
-        # Temperature has no sensor data (tests honest message)
 
-    ctrl = SentiControlWindow(settings, hist_map)
-    ctrl.tabs.setCurrentIndex(0)  # Graphs tab
+    ctrl = SentiControlWindow(settings)
     ctrl.show()
-    pix_graphs = ctrl.grab()
-    pix_graphs.save(os.path.join(output_dir, "graphs.png"))
-    print("Saved: graphs.png")
-
-    ctrl.tabs.setCurrentIndex(1)  # Settings tab
     pix_settings = ctrl.grab()
     ctrl.hide()
     pix_settings.save(os.path.join(output_dir, "settings.png"))
     print("Saved: settings.png")
+
+    # 4. Capture Dedicated Telemetry Dashboard
+    from senti_dashboard import SentiDashboardWindow
+    from system_monitor import get_system_info
+    dash = SentiDashboardWindow()
+    dash.update_telemetry(get_system_info())
+    dash.show()
+
+    # Capture CPU tab
+    dash.tabs.setCurrentIndex(0)
+    dash.grab().save(os.path.join(output_dir, "dashboard_cpu.png"))
+    print("Saved: dashboard_cpu.png")
+
+    # Capture Memory tab
+    dash.tabs.setCurrentIndex(1)
+    dash.grab().save(os.path.join(output_dir, "dashboard_memory.png"))
+    print("Saved: dashboard_memory.png")
+
+    # Capture Storage tab
+    dash.tabs.setCurrentIndex(2)
+    dash.grab().save(os.path.join(output_dir, "dashboard_storage.png"))
+    print("Saved: dashboard_storage.png")
+
+    # Capture Thermals tab
+    dash.tabs.setCurrentIndex(3)
+    dash.grab().save(os.path.join(output_dir, "dashboard_thermals.png"))
+    print("Saved: dashboard_thermals.png")
+
+    dash.hide()
 
 
 if __name__ == "__main__":

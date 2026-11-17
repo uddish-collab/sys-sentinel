@@ -57,6 +57,7 @@ from senti_sound import play_sound, ensure_sound_files
 from senti_mascot import SentiMascot, render_mascot_image
 from senti_hud import SentiHud
 from senti_control import SentiControlWindow
+from senti_dashboard import SentiDashboardWindow
 from senti_island import TopIslandWindow, GreetingBubbleWidget, DEFAULT_GREETINGS
 from senti_hotkeys import (
     GlobalHotKeyManager,
@@ -417,8 +418,13 @@ class CompanionWindow(QWidget):
         act_orb.triggered.connect(self.toggle_orb)
         menu.addAction(act_orb)
 
-        # Control window
-        act_control = QAction("Graphs && Settings", self)
+        # Dedicated Dashboard
+        act_dash = QAction("Telemetry Dashboard", self)
+        act_dash.triggered.connect(lambda: self.app_controller.open_dashboard_tab("CPU"))
+        menu.addAction(act_dash)
+
+        # Settings window
+        act_control = QAction("Settings", self)
         act_control.triggered.connect(self.app_controller.open_control_window)
         menu.addAction(act_control)
 
@@ -454,7 +460,7 @@ class SentiApp:
         # Ensure audio tones exist
         ensure_sound_files()
 
-        # 1. Create Minimalist Claude-like Glass Island
+        # 1. Create Minimalist Solid Dark Top Island
         self.island = TopIslandWindow(
             on_drag_moved=self._on_island_drag_moved,
             on_toggle_hud=self.toggle_hud,
@@ -462,6 +468,7 @@ class SentiApp:
             on_refresh=self._on_manual_refresh,
             on_toggle_sound=self.toggle_sound,
             is_sound_enabled_getter=lambda: self.settings.is_sound_enabled(),
+            on_open_tab=self.open_dashboard_tab,
         )
         # Position island at top desktop center on launch
         island_pos = get_default_island_pos(self.island.width(), self.island.height())
@@ -479,7 +486,10 @@ class SentiApp:
         # 4. Create Compact HUD
         self.hud = SentiHud(on_open_control=None)
 
-        # 4. Create Control Window
+        # 5. Create Dedicated Subsystem Telemetry Dashboard
+        self.dashboard = SentiDashboardWindow()
+
+        # 6. Create Control / Settings Window
         self.control_win = SentiControlWindow(self.settings, self.history_map)
         self.control_win.colors_changed.connect(self.on_palette_changed)
         self.control_win.sound_toggled.connect(self.on_sound_toggled)
@@ -506,6 +516,8 @@ class SentiApp:
         self.hotkeys.register_hotkey(MOD_CONTROL | MOD_SHIFT, 0x48, self.toggle_hud)
         # Ctrl + Shift + I: Return to Island
         self.hotkeys.register_hotkey(MOD_CONTROL | MOD_SHIFT, 0x49, self.return_to_island)
+        # Ctrl + Shift + D: Dedicated Telemetry Dashboard
+        self.hotkeys.register_hotkey(MOD_CONTROL | MOD_SHIFT, 0x44, lambda: self.open_dashboard_tab("CPU"))
         # Ctrl + Shift + O: Toggle Orb mode
         self.hotkeys.register_hotkey(MOD_CONTROL | MOD_SHIFT, 0x4F, self.companion.toggle_orb)
         # Install filter
@@ -532,7 +544,11 @@ class SentiApp:
         act_island.triggered.connect(self.return_to_island)
         menu.addAction(act_island)
 
-        act_control = QAction("Graphs && Settings", menu)
+        act_dash = QAction("Telemetry Dashboard", menu)
+        act_dash.triggered.connect(lambda: self.open_dashboard_tab("CPU"))
+        menu.addAction(act_dash)
+
+        act_control = QAction("Settings", menu)
         act_control.triggered.connect(self.open_control_window)
         menu.addAction(act_control)
 
@@ -645,6 +661,18 @@ class SentiApp:
     def open_control_window(self):
         self.control_win.show_window()
 
+    def open_dashboard_tab(self, tab_name: str = "CPU"):
+        """Open the dedicated subsystem telemetry tab (CPU, RAM, STORAGE, THERMALS, etc.)."""
+        # Position dashboard cleanly below the island
+        isl_geo = self.island.geometry()
+        x = max(10, isl_geo.center().x() - self.dashboard.width() // 2)
+        y = min(QApplication.primaryScreen().availableGeometry().bottom() - self.dashboard.height() - 10, isl_geo.bottom() + 10)
+        self.dashboard.move(x, max(10, y))
+        self.dashboard.open_tab(tab_name)
+        # Immediate telemetry update
+        self.dashboard.update_telemetry(get_system_info())
+        self.play("show")
+
     def on_palette_changed(self):
         self.companion.apply_palette()
 
@@ -693,9 +721,9 @@ class SentiApp:
         if self.hud.isVisible():
             self.hud.update_data(info)
 
-        # Update Control graphs if visible
-        if self.control_win.isVisible():
-            self.control_win.update_graphs()
+        # Update Dedicated Telemetry Dashboard if visible
+        if self.dashboard.isVisible():
+            self.dashboard.update_telemetry(info)
 
     def start(self):
         self.poll_telemetry()
@@ -738,6 +766,7 @@ class SentiApp:
             self.play("greeting")
 
     def quit_app(self):
+        self.dashboard.close()
         self.greeting_bubble.close()
         self.hotkeys.unregister_all()
         if not self.companion.is_docked:

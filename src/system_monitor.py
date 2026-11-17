@@ -321,4 +321,354 @@ def get_system_info(temp_monitor: Optional[TemperatureMonitor] = None) -> Dict[s
     except Exception:
         pass
 
+    # Rich Subsystem Telemetry
+    snapshot["cpu_cores"] = get_cpu_cores()
+    snapshot["cpu_freq_mhz"] = get_cpu_frequency()
+    snapshot["cpu_stats"] = get_cpu_activity_stats()
+    snapshot["ram_details"] = get_detailed_ram_info()
+    snapshot["disk_details"] = get_detailed_disk_info()
+    snapshot["net_details"] = get_detailed_net_info()
+    snapshot["gpu_details"] = get_detailed_gpu_info()
+
     return snapshot
+
+
+# --- Advanced Subsystem Telemetry & Process Management ---
+
+_last_disk_counters = None
+_last_disk_timestamp = 0.0
+_last_net_counters = None
+_last_net_timestamp = 0.0
+_cached_gpu_info = None
+_last_ping_ms = None
+_last_ping_time = 0.0
+
+
+def get_cpu_cores() -> List[float]:
+    """Return live per-core load percentages across all logical cores."""
+    try:
+        loads = psutil.cpu_percent(interval=None, percpu=True)
+        return [float(c) for c in loads] if loads else []
+    except Exception:
+        return []
+
+
+def get_cpu_frequency() -> Optional[float]:
+    """Return current CPU clock speed in MHz."""
+    try:
+        freq = psutil.cpu_freq()
+        return float(freq.current) if freq and freq.current else None
+    except Exception:
+        return None
+
+
+def get_cpu_activity_stats() -> Dict[str, Any]:
+    """Return process count, thread count, context switches, and interrupts."""
+    stats = {
+        "process_count": 0,
+        "thread_count": 0,
+        "ctx_switches": 0,
+        "interrupts": 0,
+    }
+    try:
+        c_stats = psutil.cpu_stats()
+        stats["ctx_switches"] = c_stats.ctx_switches
+        stats["interrupts"] = c_stats.interrupts
+    except Exception:
+        pass
+
+    try:
+        pids = psutil.pids()
+        stats["process_count"] = len(pids)
+        # Approximate threads
+        thread_total = 0
+        for pid in pids[:40]:  # sample representative slice without stalling
+            try:
+                thread_total += psutil.Process(pid).num_threads()
+            except Exception:
+                pass
+        stats["thread_count"] = thread_total
+    except Exception:
+        pass
+
+    return stats
+
+
+def get_detailed_ram_info() -> Dict[str, Any]:
+    """Return comprehensive RAM and Swap/Pagefile breakdown."""
+    info = {
+        "total_gb": 0.0,
+        "used_gb": 0.0,
+        "free_gb": 0.0,
+        "available_gb": 0.0,
+        "percent": 0.0,
+        "cached_gb": 0.0,
+        "swap_total_gb": 0.0,
+        "swap_used_gb": 0.0,
+        "swap_free_gb": 0.0,
+        "swap_percent": 0.0,
+    }
+    try:
+        mem = psutil.virtual_memory()
+        info["total_gb"] = mem.total / (1024 ** 3)
+        info["used_gb"] = mem.used / (1024 ** 3)
+        info["free_gb"] = mem.free / (1024 ** 3)
+        info["available_gb"] = mem.available / (1024 ** 3)
+        info["percent"] = float(mem.percent)
+        # Cached / Standby if present on platform
+        cached = getattr(mem, "cached", 0) or getattr(mem, "buffers", 0) or (mem.available - mem.free)
+        info["cached_gb"] = max(0.0, cached / (1024 ** 3))
+    except Exception:
+        pass
+
+    try:
+        swap = psutil.swap_memory()
+        info["swap_total_gb"] = swap.total / (1024 ** 3)
+        info["swap_used_gb"] = swap.used / (1024 ** 3)
+        info["swap_free_gb"] = swap.free / (1024 ** 3)
+        info["swap_percent"] = float(swap.percent)
+    except Exception:
+        pass
+
+    return info
+
+
+def get_detailed_disk_info() -> Dict[str, Any]:
+    """Return multi-partition capacities and live read/write throughput rates (MB/s)."""
+    global _last_disk_counters, _last_disk_timestamp
+
+    info: Dict[str, Any] = {
+        "partitions": [],
+        "read_mb_s": 0.0,
+        "write_mb_s": 0.0,
+        "read_bytes_total": 0,
+        "write_bytes_total": 0,
+        "read_count": 0,
+        "write_count": 0,
+    }
+
+    # 1. Partitions
+    try:
+        for p in psutil.disk_partitions(all=False):
+            if "cdrom" in p.opts.lower():
+                continue
+            try:
+                u = psutil.disk_usage(p.mountpoint)
+                info["partitions"].append({
+                    "device": p.device,
+                    "mountpoint": p.mountpoint,
+                    "fstype": p.fstype,
+                    "total_gb": u.total / (1024 ** 3),
+                    "used_gb": u.used / (1024 ** 3),
+                    "free_gb": u.free / (1024 ** 3),
+                    "percent": float(u.percent),
+                })
+            except (PermissionError, OSError):
+                continue
+    except Exception:
+        pass
+
+    # 2. Live I/O Rates
+    now = time.time()
+    try:
+        curr_io = psutil.disk_io_counters()
+        if curr_io:
+            info["read_bytes_total"] = curr_io.read_bytes
+            info["write_bytes_total"] = curr_io.write_bytes
+            info["read_count"] = curr_io.read_count
+            info["write_count"] = curr_io.write_count
+
+            if _last_disk_counters is not None and (_last_disk_timestamp > 0):
+                dt = now - _last_disk_timestamp
+                if dt >= 0.2:
+                    delta_read = curr_io.read_bytes - _last_disk_counters.read_bytes
+                    delta_write = curr_io.write_bytes - _last_disk_counters.write_bytes
+                    info["read_mb_s"] = max(0.0, (delta_read / (1024 * 1024)) / dt)
+                    info["write_mb_s"] = max(0.0, (delta_write / (1024 * 1024)) / dt)
+
+            _last_disk_counters = curr_io
+            _last_disk_timestamp = now
+    except Exception:
+        pass
+
+    return info
+
+
+def get_detailed_net_info() -> Dict[str, Any]:
+    """Return live upload/download bandwidth (KB/s), total bytes, and target ping latency."""
+    global _last_net_counters, _last_net_timestamp, _last_ping_ms, _last_ping_time
+
+    now = time.time()
+    info: Dict[str, Any] = {
+        "recv_kb_s": 0.0,
+        "sent_kb_s": 0.0,
+        "total_recv_mb": 0.0,
+        "total_sent_mb": 0.0,
+        "ping_ms": None,
+    }
+
+    try:
+        curr_net = psutil.net_io_counters()
+        if curr_net:
+            info["total_recv_mb"] = curr_net.bytes_recv / (1024 * 1024)
+            info["total_sent_mb"] = curr_net.bytes_sent / (1024 * 1024)
+
+            if _last_net_counters is not None and (_last_net_timestamp > 0):
+                dt = now - _last_net_timestamp
+                if dt >= 0.2:
+                    delta_recv = curr_net.bytes_recv - _last_net_counters.bytes_recv
+                    delta_sent = curr_net.bytes_sent - _last_net_counters.bytes_sent
+                    info["recv_kb_s"] = max(0.0, (delta_recv / 1024) / dt)
+                    info["sent_kb_s"] = max(0.0, (delta_sent / 1024) / dt)
+
+            _last_net_counters = curr_net
+            _last_net_timestamp = now
+    except Exception:
+        pass
+
+    # Ping measurement (cached every 5 seconds to avoid network contention)
+    if (now - _last_ping_time) >= 5.0 or _last_ping_ms is None:
+        try:
+            start = time.perf_counter()
+            s = socket.create_connection(("8.8.8.8", 53), timeout=0.8)
+            s.close()
+            _last_ping_ms = round((time.perf_counter() - start) * 1000.0, 1)
+            _last_ping_time = now
+        except Exception:
+            _last_ping_ms = None
+            _last_ping_time = now
+
+    info["ping_ms"] = _last_ping_ms
+    return info
+
+
+def get_detailed_gpu_info() -> Dict[str, Any]:
+    """Return GPU adapter name, dedicated VRAM, and driver version."""
+    global _cached_gpu_info
+    if _cached_gpu_info is not None:
+        return _cached_gpu_info
+
+    info = {
+        "name": "Generic Display Adapter",
+        "vram_gb": None,
+        "driver": "Standard Driver",
+    }
+
+    if sys.platform == "win32":
+        try:
+            # Fast query via PowerShell CIM
+            cmd = "Get-CimInstance Win32_VideoController | Select-Object -First 1 Name, AdapterRAM, DriverVersion | ConvertTo-Json"
+            proc = subprocess.run(
+                ["powershell", "-NoProfile", "-NonInteractive", "-Command", cmd],
+                capture_output=True,
+                text=True,
+                timeout=2.0,
+                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+            )
+            if proc.returncode == 0 and proc.stdout.strip():
+                import json
+                data = json.loads(proc.stdout)
+                if isinstance(data, dict):
+                    info["name"] = data.get("Name") or info["name"]
+                    ram = data.get("AdapterRAM")
+                    if ram and isinstance(ram, (int, float)):
+                        info["vram_gb"] = round(ram / (1024 ** 3), 1)
+                    info["driver"] = data.get("DriverVersion") or info["driver"]
+        except Exception:
+            pass
+
+    _cached_gpu_info = info
+    return info
+
+
+def get_top_processes(limit: int = 15, sort_by: str = "cpu") -> List[Dict[str, Any]]:
+    """Return a live-sorted list of top resource-consuming applications."""
+    procs: List[Dict[str, Any]] = []
+    key_field = "cpu_percent" if sort_by == "cpu" else "memory_percent"
+
+    for p in psutil.process_iter(["pid", "name", "cpu_percent", "memory_percent", "status"]):
+        try:
+            item = p.info
+            item["cpu_percent"] = float(item.get("cpu_percent") or 0.0)
+            item["memory_percent"] = float(item.get("memory_percent") or 0.0)
+            procs.append(item)
+        except (psutil.NoSuchProcess, psutil.AccessDenied):
+            continue
+
+    procs.sort(key=lambda x: (x.get(key_field) or 0.0), reverse=True)
+    return procs[:limit]
+
+
+def get_active_connections(limit: int = 25) -> List[Dict[str, Any]]:
+    """Return active TCP/UDP ports and network endpoints."""
+    active: List[Dict[str, Any]] = []
+    try:
+        conns = psutil.net_connections(kind="inet")
+        for c in conns:
+            if c.status in ("LISTEN", "ESTABLISHED", "TIME_WAIT"):
+                l_ip = c.laddr.ip if c.laddr else "*"
+                l_port = c.laddr.port if c.laddr else 0
+                r_ip = c.raddr.ip if c.raddr else "*"
+                r_port = c.raddr.port if c.raddr else 0
+                active.append({
+                    "proto": "TCP" if c.type == socket.SOCK_STREAM else "UDP",
+                    "local": f"{l_ip}:{l_port}",
+                    "remote": f"{r_ip}:{r_port}" if r_port else "-",
+                    "status": c.status,
+                    "pid": c.pid or 0,
+                })
+                if len(active) >= limit:
+                    break
+    except Exception:
+        pass
+    return active
+
+
+def terminate_process(pid: int) -> bool:
+    """Terminate / kill a process by PID."""
+    try:
+        p = psutil.Process(pid)
+        p.terminate()
+        return True
+    except Exception:
+        return False
+
+
+def suspend_process(pid: int) -> bool:
+    """Suspend execution of a process by PID."""
+    try:
+        p = psutil.Process(pid)
+        p.suspend()
+        return True
+    except Exception:
+        return False
+
+
+def resume_process(pid: int) -> bool:
+    """Resume execution of a suspended process by PID."""
+    try:
+        p = psutil.Process(pid)
+        p.resume()
+        return True
+    except Exception:
+        return False
+
+
+def set_process_priority(pid: int, priority: str) -> bool:
+    """Change process scheduling priority on Windows."""
+    try:
+        p = psutil.Process(pid)
+        prio_map = {
+            "Realtime": getattr(psutil, "REALTIME_PRIORITY_CLASS", 256),
+            "High": getattr(psutil, "HIGH_PRIORITY_CLASS", 128),
+            "Above Normal": getattr(psutil, "ABOVE_NORMAL_PRIORITY_CLASS", 32768),
+            "Normal": getattr(psutil, "NORMAL_PRIORITY_CLASS", 32),
+            "Below Normal": getattr(psutil, "BELOW_NORMAL_PRIORITY_CLASS", 16384),
+            "Idle": getattr(psutil, "IDLE_PRIORITY_CLASS", 64),
+        }
+        if priority in prio_map:
+            p.nice(prio_map[priority])
+            return True
+        return False
+    except Exception:
+        return False
