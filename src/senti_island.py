@@ -270,8 +270,8 @@ class TopIslandWindow(QWidget):
         anim_timer.start()
 
     def get_dock_target_pos(self, senti_size: int = 80) -> QPoint:
-        """Calculate screen position where SENTI nests inside Card 1 (cx: 78, cy: 68)."""
-        dock_x = self.x() + 78 - senti_size // 2
+        """Calculate screen position where SENTI nests inside Card 1 (cx: 171, cy: 68)."""
+        dock_x = self.x() + 171 - senti_size // 2
         dock_y = self.y() + 68 - senti_size // 2
         return QPoint(dock_x, dock_y)
 
@@ -290,21 +290,6 @@ class TopIslandWindow(QWidget):
 
     def _hit_test(self, pos: QPoint) -> Optional[str]:
         px, py = pos.x(), pos.y()
-
-        # Card 1 sound toggle button (x: 264..292, y: 16..42)
-        if 16 <= py <= 42 and 264 <= px <= 292:
-            return "sound"
-
-        # Card 1 jump button [↗] (x: 294..322, y: 16..42)
-        if 16 <= py <= 42 and 294 <= px <= 322:
-            return "hud"
-
-        # Card 1 action links (y: 84..112)
-        if 84 <= py <= 112:
-            if 124 <= px <= 216:
-                return "hud"
-            elif 224 <= px <= 290:
-                return "refresh"
 
         # Card 2 pills area (y: 10..126, x: 342..630) -> Click opens HUD
         if 10 <= py <= 126 and 342 <= px <= 630:
@@ -427,67 +412,6 @@ class TopIslandWindow(QWidget):
         p.setPen(QPen(QColor(255, 255, 255, 9), 1.0))
         p.setBrush(QColor("#141518"))
         p.drawRoundedRect(c1_rect, 20.0, 20.0)
-
-        # Sound toggle button (22x22 circular button to the left of jump button)
-        sound_on = True
-        if self.is_sound_enabled_getter:
-            sound_on = self.is_sound_enabled_getter()
-        sound_rect = QRectF(268.0, 18.0, 22.0, 22.0)
-        p.setPen(Qt.PenStyle.NoPen)
-        p.setBrush(QColor(255, 255, 255, 16 if self._hover_target == "sound" else 8))
-        p.drawEllipse(sound_rect)
-        sound_icon = "🔊" if sound_on else "🔇"
-        sound_color = QColor(
-            "#22d3ee"
-            if (sound_on and self._hover_target != "sound")
-            else ("#ffffff" if self._hover_target == "sound" else "#8e939c")
-        )
-        p.setFont(QFont("Segoe UI Emoji", 9))
-        p.setPen(sound_color)
-        p.drawText(sound_rect, Qt.AlignmentFlag.AlignCenter, sound_icon)
-
-        # Jump button (.jump: 22x22 circular button at top right)
-        jump_rect = QRectF(296.0, 18.0, 22.0, 22.0)
-        p.setPen(Qt.PenStyle.NoPen)
-        p.setBrush(QColor(255, 255, 255, 18 if self._hover_target == "hud" else 10))
-        p.drawEllipse(jump_rect)
-        p.setFont(QFont("Segoe UI", 9.5, QFont.Weight.DemiBold))
-        p.setPen(QColor("#ffffff" if self._hover_target == "hud" else "#8e939c"))
-        p.drawText(jump_rect, Qt.AlignmentFlag.AlignCenter, "↗")
-
-        # Left card text layout (.who at x=124)
-        tx = 124.0
-
-        # Row 1: Dot + SYS-SENTINEL
-        p.setPen(Qt.PenStyle.NoPen)
-        p.setBrush(QColor("#f5f6f8"))
-        p.drawEllipse(QPointF(tx + 4, 40), 3.5, 3.5)
-
-        p.setFont(QFont("Segoe UI", 10, QFont.Weight.DemiBold))
-        p.setPen(QColor("#f5f6f8"))
-        p.drawText(int(tx + 14), 44, "SYS-SENTINEL")
-
-        # Row 2: Status (.int-status)
-        cpu = self._telemetry.get("cpu", 0.0)
-        is_warn = cpu >= 65.0
-        bullet_c = QColor("#f59e0b" if is_warn else "#22c55e")
-        p.setPen(Qt.PenStyle.NoPen)
-        p.setBrush(bullet_c)
-        p.drawEllipse(QPointF(tx + 4, 66), 2.5, 2.5)
-
-        status_text = "Alert · High Load" if is_warn else "Connected · nominal"
-        p.setFont(QFont("Segoe UI", 8.5))
-        p.setPen(QColor("#f59e0b" if is_warn else "#9398a1"))
-        p.drawText(int(tx + 14), 70, status_text)
-
-        # Row 3: Action Links (Telemetry HUD, Refresh)
-        p.setFont(QFont("Segoe UI", 9, QFont.Weight.DemiBold))
-        p.setPen(QColor("#38bdf8" if self._hover_target == "hud" else "#f5f6f8"))
-        p.drawText(int(tx), 96, "Telemetry HUD")
-
-        p.setFont(QFont("Segoe UI", 9, QFont.Weight.Normal))
-        p.setPen(QColor("#ffffff" if self._hover_target == "refresh" else "#8e939c"))
-        p.drawText(int(tx + 104), 96, "Refresh")
 
     def _paint_card_2(self, p: QPainter):
         """Paint Card 2 (Right: 288x116, radius 20, bg #141518, 2x2 pills)."""
