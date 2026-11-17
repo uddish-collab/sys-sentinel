@@ -70,8 +70,8 @@ from senti_hotkeys import (
 # =====================================================================
 STARTUP_GREETINGS = list(DEFAULT_GREETINGS)
 
-NORMAL_SIZE = 72      # Consistent mascot size (same size floating and docked)
-DOCKED_SIZE = 72      # Senti matches island dock size
+NORMAL_SIZE = 58      # Matches Mochi botDiameter: 58 (consistent floating & docked size)
+DOCKED_SIZE = 58      # Senti nests perfectly inside Card 1 at (49, 63)
 ORB_SIZE = 44         # Minimalist orb form
 DRAG_THRESHOLD = 5
 

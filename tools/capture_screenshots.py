@@ -74,8 +74,8 @@ def capture_all():
         "system_drive": "C:",
     })
     docked_senti = SentiMascot(island)
-    docked_senti.resize(72, 72)
-    docked_senti.move(22, 56)
+    docked_senti.resize(58, 58)
+    docked_senti.move(49, 63)
     docked_senti._timer.stop()
     island.show()
     pix_island = island.grab()

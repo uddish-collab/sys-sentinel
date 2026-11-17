@@ -183,8 +183,8 @@ class TopIslandWindow(QWidget):
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         self.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating)
 
-        # Exact dimensions matching Mochi 636 x 154 enclosed layout
-        self.setFixedSize(636, 154)
+        # Exact dimensions matching Mochi 640 x 160 layout
+        self.setFixedSize(640, 160)
 
         # Telemetry data
         self._telemetry: Dict[str, Any] = {
@@ -211,10 +211,10 @@ class TopIslandWindow(QWidget):
         self._fade_anim.setDuration(160)
         self._fade_anim.setEasingCurve(QEasingCurve.Type.InOutCubic)
 
-    def get_dock_target_pos(self, senti_size: int = 72) -> QPoint:
-        """Calculate screen position where SENTI nests inside Card 1."""
-        dock_x = self.x() + 22 + (72 - senti_size) // 2
-        dock_y = self.y() + 56 + (72 - senti_size) // 2
+    def get_dock_target_pos(self, senti_size: int = 58) -> QPoint:
+        """Calculate screen position where SENTI nests inside Card 1 (cx: 78, cy: 92)."""
+        dock_x = self.x() + 49 + (58 - senti_size) // 2
+        dock_y = self.y() + 63 + (58 - senti_size) // 2
         return QPoint(dock_x, dock_y)
 
     def update_telemetry(self, data: Dict[str, Any]):
@@ -233,35 +233,35 @@ class TopIslandWindow(QWidget):
     def _hit_test(self, pos: QPoint) -> Optional[str]:
         px, py = pos.x(), pos.y()
 
-        # Top-left navigation capsule (x: 14..110, y: 12..38)
-        if 12 <= py <= 38:
-            if 14 <= px < 46:
+        # Top bar left tabs (y: 6..28)
+        if 6 <= py <= 28:
+            if 14 <= px <= 44:
                 return "home"
-            elif 46 <= px < 76:
+            elif 49 <= px <= 79:
                 return "chat"
-            elif 76 <= px <= 110:
+            elif 84 <= px <= 114:
                 return "plus"
 
-        # Top-right action icons (x: 575..635, y: 12..38)
-        if 12 <= py <= 38:
-            if 575 <= px < 605:
+        # Top bar right actions (y: 6..28)
+        if 6 <= py <= 28:
+            if 576 <= px <= 598:
                 return "hud"
-            elif 605 <= px <= 635:
+            elif 604 <= px <= 626:
                 return "sound"
 
-        # Card 1 arrow [↗] (x: 290..318, y: 50..76)
-        if 50 <= py <= 76 and 290 <= px <= 318:
+        # Card 1 jump button [↗] (y: 40..64, x: 300..326)
+        if 40 <= py <= 64 and 300 <= px <= 326:
             return "hud"
 
-        # Card 1 clickable links (y: 112..140, x: 104..300)
-        if 112 <= py <= 140:
-            if 104 <= px < 210:
+        # Card 1 action links (y: 108..130)
+        if 108 <= py <= 130:
+            if 126 <= px <= 216:
                 return "hud"
-            elif 210 <= px <= 280:
+            elif 226 <= px <= 290:
                 return "refresh"
 
-        # Card 2 pills (x: 334..630, y: 44..150) -> Click opens HUD
-        if 44 <= py <= 150 and 334 <= px <= 630:
+        # Card 2 pills area (y: 34..150, x: 342..630) -> Click opens HUD
+        if 34 <= py <= 150 and 342 <= px <= 630:
             return "hud"
 
         return None
@@ -358,121 +358,121 @@ class TopIslandWindow(QWidget):
             w = self.width()
             h = self.height()
 
-            # 1. ENTIRE OUTER ISLAND CONTAINER WITH CRISP OUTLINE (Solid Pitch Black)
+            # 1. ENTIRE OUTER ISLAND CONTAINER (#island: background #000, 22px corner radius)
             island_rect = QRectF(1.0, 1.0, w - 2.0, h - 2.0)
-            p.setPen(QPen(QColor(255, 255, 255, 42), 1.2))
+            p.setPen(QPen(QColor(255, 255, 255, 28), 1.0))
             p.setBrush(QColor("#000000"))
-            p.drawRoundedRect(island_rect, 26.0, 26.0)
+            p.drawRoundedRect(island_rect, 22.0, 22.0)
 
-            # 2. Top Bar Elements
+            # 2. Header Bar (#header: height 34px)
             self._paint_top_bar(p)
 
-            # 3. Card 1 (Left: Mascot Host + Status + Links)
+            # 3. Overview Left Card (.overview > .left: w=322, h=116, radius=20, bg=#141518)
             self._paint_card_1(p)
 
-            # 4. Card 2 (Right: 2x2 Refined Metric Pills)
+            # 4. Overview Right Card (.overview > .right: w=288, h=116, radius=20, bg=#141518)
             self._paint_card_2(p)
         finally:
             p.end()
 
     def _paint_top_bar(self, p: QPainter):
-        """Paint the subtle top bar with navigation capsule and system icons."""
-        # Top-left capsule (x: 14, y: 10, w: 96, h: 26, radius: 13)
-        cap_rect = QRectF(14.0, 10.0, 96.0, 26.0)
-        p.setPen(QPen(QColor("#25272d"), 1.0))
-        p.setBrush(QColor("#141518"))
-        p.drawRoundedRect(cap_rect, 13.0, 13.0)
-
-        # Home button (active rounded button inside)
-        home_rect = QRectF(16.0, 12.0, 28.0, 22.0)
+        """Paint header bar matching Mochi #header tabs and actions."""
+        # Home tab (active .tab.on: 30x22, radius 11, bg #1d1f23, icon #f5f6f8)
+        home_rect = QRectF(14.0, 6.0, 30.0, 22.0)
         p.setPen(Qt.PenStyle.NoPen)
-        p.setBrush(QColor("#282a30"))
+        p.setBrush(QColor("#1d1f23"))
         p.drawRoundedRect(home_rect, 11.0, 11.0)
         p.setFont(QFont("Segoe UI Emoji", 9, QFont.Weight.Bold))
-        p.setPen(QColor("#ffffff"))
+        p.setPen(QColor("#f5f6f8"))
         p.drawText(home_rect, Qt.AlignmentFlag.AlignCenter, "⌂")
 
-        # Chat [💬]
-        p.setFont(QFont("Segoe UI Emoji", 8))
-        p.setPen(QColor("#00e5ff" if self._hover_target == "chat" else "#788195"))
-        p.drawText(QRectF(48, 10, 28, 26), Qt.AlignmentFlag.AlignCenter, "💬")
+        # Chat tab (.tab: 30x22, icon #8e939c)
+        chat_rect = QRectF(49.0, 6.0, 30.0, 22.0)
+        p.setFont(QFont("Segoe UI Emoji", 8.5))
+        p.setPen(QColor("#00e5ff" if self._hover_target == "chat" else "#8e939c"))
+        p.drawText(chat_rect, Qt.AlignmentFlag.AlignCenter, "💬")
 
-        # Plus [+]
+        # Plus tab (.tab: 30x22, icon #8e939c)
+        plus_rect = QRectF(84.0, 5.0, 30.0, 22.0)
         p.setFont(QFont("Segoe UI", 11, QFont.Weight.Normal))
-        p.setPen(QColor("#ffffff" if self._hover_target == "plus" else "#788195"))
-        p.drawText(QRectF(76, 10, 28, 26), Qt.AlignmentFlag.AlignCenter, "+")
+        p.setPen(QColor("#ffffff" if self._hover_target == "plus" else "#8e939c"))
+        p.drawText(plus_rect, Qt.AlignmentFlag.AlignCenter, "+")
 
-        # Top-right: Gear and Speaker
+        # Header actions (right): Gear and Speaker
         p.setFont(QFont("Segoe UI Emoji", 9))
-        p.setPen(QColor("#ffffff" if self._hover_target == "hud" else "#788195"))
-        p.drawText(QRectF(574, 12, 24, 22), Qt.AlignmentFlag.AlignCenter, "⚙")
+        p.setPen(QColor("#ffffff" if self._hover_target == "hud" else "#8e939c"))
+        p.drawText(QRectF(576.0, 6.0, 22.0, 22.0), Qt.AlignmentFlag.AlignCenter, "⚙")
 
         sound_on = True
         if self.is_sound_enabled_getter:
             sound_on = self.is_sound_enabled_getter()
         sound_icon = "🔊" if sound_on else "🔇"
-        p.setPen(QColor("#38bdf8" if (sound_on and self._hover_target != "sound") else ("#ffffff" if self._hover_target == "sound" else "#475569")))
-        p.drawText(QRectF(602, 12, 24, 22), Qt.AlignmentFlag.AlignCenter, sound_icon)
+        sound_color = QColor(
+            "#22d3ee"
+            if (sound_on and self._hover_target != "sound")
+            else ("#ffffff" if self._hover_target == "sound" else "#8e939c")
+        )
+        p.setPen(sound_color)
+        p.drawText(QRectF(604.0, 6.0, 22.0, 22.0), Qt.AlignmentFlag.AlignCenter, sound_icon)
 
     def _paint_card_1(self, p: QPainter):
-        """Paint Card 1 (Left): Solid opaque dark container with SENTI, status, and links."""
-        c1_rect = QRectF(12.0, 42.0, 308.0, 100.0)
-        p.setPen(QPen(QColor("#24262c"), 1.0))
+        """Paint Card 1 (Left: 322x116, radius 20, bg #141518, hairline border)."""
+        c1_rect = QRectF(10.0, 34.0, 322.0, 116.0)
+        p.setPen(QPen(QColor(255, 255, 255, 9), 1.0))
         p.setBrush(QColor("#141518"))
         p.drawRoundedRect(c1_rect, 20.0, 20.0)
 
-        # Card 1 top-right arrow button [↗]
-        arrow_box = QRectF(288.0, 48.0, 22.0, 22.0)
-        p.setPen(QPen(QColor("#24262c"), 1.0))
-        p.setBrush(QColor("#1a1b20"))
-        p.drawEllipse(arrow_box)
-        p.setFont(QFont("Segoe UI", 9, QFont.Weight.DemiBold))
-        p.setPen(QColor("#ffffff" if self._hover_target == "hud" else "#788195"))
-        p.drawText(arrow_box, Qt.AlignmentFlag.AlignCenter, "↗")
-
-        # Card 1 text layout (x: 100..)
-        tx = 100.0
-
-        # Dot + Title
+        # Jump button (.jump: 20x20 circular button at top right)
+        jump_rect = QRectF(304.0, 42.0, 20.0, 20.0)
         p.setPen(Qt.PenStyle.NoPen)
-        p.setBrush(QColor("#ffffff"))
-        p.drawEllipse(QPointF(tx + 4, 63), 3.0, 3.0)
+        p.setBrush(QColor(255, 255, 255, 14))
+        p.drawEllipse(jump_rect)
+        p.setFont(QFont("Segoe UI", 9, QFont.Weight.DemiBold))
+        p.setPen(QColor("#ffffff" if self._hover_target == "hud" else "#8e939c"))
+        p.drawText(jump_rect, Qt.AlignmentFlag.AlignCenter, "↗")
 
-        p.setFont(QFont("Segoe UI", 11, QFont.Weight.Bold))
-        p.setPen(QColor("#ffffff"))
-        p.drawText(int(tx + 14), 67, "SYS-SENTINEL")
+        # Left card text layout (.who at x=126)
+        tx = 126.0
+
+        # Row 1: Dot + SYS-SENTINEL + Monitor
+        p.setPen(Qt.PenStyle.NoPen)
+        p.setBrush(QColor("#f5f6f8"))
+        p.drawEllipse(QPointF(tx + 4, 56), 3.5, 3.5)
+
+        p.setFont(QFont("Segoe UI", 10, QFont.Weight.DemiBold))
+        p.setPen(QColor("#f5f6f8"))
+        p.drawText(int(tx + 14), 60, "SYS-SENTINEL")
 
         p.setFont(QFont("Segoe UI", 9, QFont.Weight.Normal))
-        p.setPen(QColor("#788195"))
-        p.drawText(int(tx + 118), 67, "Monitor")
+        p.setPen(QColor("#8e939c"))
+        p.drawText(int(tx + 106), 60, "Monitor")
 
-        # Subtitle
+        # Row 2: Status (.int-status)
         cpu = self._telemetry.get("cpu", 0.0)
         is_warn = cpu >= 65.0
-        bullet_c = QColor("#f59e0b" if is_warn else "#10b981")
-
+        bullet_c = QColor("#f59e0b" if is_warn else "#22c55e")
         p.setPen(Qt.PenStyle.NoPen)
         p.setBrush(bullet_c)
-        p.drawEllipse(QPointF(tx + 4, 87), 3.0, 3.0)
+        p.drawEllipse(QPointF(tx + 4, 80), 2.5, 2.5)
 
         status_text = "Alert · High Load" if is_warn else "Connected · nominal"
-        p.setFont(QFont("Segoe UI", 9))
-        p.setPen(QColor("#f59e0b" if is_warn else "#9094a2"))
-        p.drawText(int(tx + 14), 91, status_text)
+        p.setFont(QFont("Segoe UI", 8.5))
+        p.setPen(QColor("#f59e0b" if is_warn else "#9398a1"))
+        p.drawText(int(tx + 14), 84, status_text)
 
-        # Links
+        # Row 3: Action Links (Telemetry HUD, Refresh)
         p.setFont(QFont("Segoe UI", 9, QFont.Weight.DemiBold))
-        p.setPen(QColor("#38bdf8" if self._hover_target == "hud" else "#ffffff"))
-        p.drawText(int(tx), 122, "Telemetry HUD")
+        p.setPen(QColor("#38bdf8" if self._hover_target == "hud" else "#f5f6f8"))
+        p.drawText(int(tx), 118, "Telemetry HUD")
 
         p.setFont(QFont("Segoe UI", 9, QFont.Weight.Normal))
-        p.setPen(QColor("#ffffff" if self._hover_target == "refresh" else "#788195"))
-        p.drawText(int(tx + 112), 122, "Refresh")
+        p.setPen(QColor("#ffffff" if self._hover_target == "refresh" else "#8e939c"))
+        p.drawText(int(tx + 104), 118, "Refresh")
 
     def _paint_card_2(self, p: QPainter):
-        """Paint Card 2 (Right): Solid opaque dark container with 2x2 metric pills."""
-        c2_rect = QRectF(328.0, 42.0, 296.0, 100.0)
-        p.setPen(QPen(QColor("#24262c"), 1.0))
+        """Paint Card 2 (Right: 288x116, radius 20, bg #141518, 2x2 pills)."""
+        c2_rect = QRectF(342.0, 34.0, 288.0, 116.0)
+        p.setPen(QPen(QColor(255, 255, 255, 9), 1.0))
         p.setBrush(QColor("#141518"))
         p.drawRoundedRect(c2_rect, 20.0, 20.0)
 
@@ -487,21 +487,21 @@ class TopIslandWindow(QWidget):
 
         temp_str = f"{temp_val:.0f}°C" if temp_val is not None else "N/A"
 
-        col1_x = 338.0
-        col2_x = 480.0
-        row1_y = 52.0
-        row2_y = 92.0
+        col1_x = 350.0
+        col2_x = 488.0
+        row1_y = 62.0
+        row2_y = 94.0
         pw = 134.0
         ph = 28.0
 
-        # Pill 1: CPU (Emerald)
-        self._paint_pill(p, col1_x, row1_y, pw, ph, QColor("#10b981"), "CPU", f"{cpu_val:.0f}%")
-        # Pill 2: RAM (Amber)
-        self._paint_pill(p, col2_x, row1_y, pw, ph, QColor("#f59e0b"), "RAM", f"{ram_val:.0f}%")
-        # Pill 3: DISK (Violet)
-        self._paint_pill(p, col1_x, row2_y, pw, ph, QColor("#8b5cf6"), f"{sys_drive} DISK", f"{disk_val:.0f}%")
-        # Pill 4: TEMP (Rose)
-        self._paint_pill(p, col2_x, row2_y, pw, ph, QColor("#f43f5e"), "TEMP", temp_str)
+        # Pill 1: CPU (Emerald #22c55e)
+        self._paint_pill(p, col1_x, row1_y, pw, ph, QColor("#22c55e"), "CPU", f"{cpu_val:.0f}%")
+        # Pill 2: RAM (Amber #f5a524)
+        self._paint_pill(p, col2_x, row1_y, pw, ph, QColor("#f5a524"), "RAM", f"{ram_val:.0f}%")
+        # Pill 3: DISK (Indigo #6366f1)
+        self._paint_pill(p, col1_x, row2_y, pw, ph, QColor("#6366f1"), f"{sys_drive} DISK", f"{disk_val:.0f}%")
+        # Pill 4: TEMP (Red/Rose #f4505e)
+        self._paint_pill(p, col2_x, row2_y, pw, ph, QColor("#f4505e"), "TEMP", temp_str)
 
     def _paint_pill(
         self,
@@ -514,35 +514,35 @@ class TopIslandWindow(QWidget):
         label: str,
         val_str: str,
     ):
-        """Paint a single compact solid pill with two-eyed badge, label, and value."""
+        """Paint a single pill (.pill: height 28px, radius 999px, bg #0e0f11, border rgba(255,255,255,0.14))."""
         rect = QRectF(px, py, pw, ph)
-        p.setPen(QPen(QColor("#26282f"), 1.0))
-        p.setBrush(QColor("#1a1b20"))
-        p.drawRoundedRect(rect, 13.0, 13.0)
+        p.setPen(QPen(QColor(255, 255, 255, 36), 1.0))
+        p.setBrush(QColor("#0e0f11"))
+        p.drawRoundedRect(rect, 14.0, 14.0)
 
-        # Badge
-        bx, by, bw, bh = px + 5.0, py + 4.0, 26.0, 20.0
+        # Mini badge (.mini: 22x19, radius 6px)
+        bx, by, bw, bh = px + 6.0, py + 4.5, 22.0, 19.0
         p.setPen(Qt.PenStyle.NoPen)
         p.setBrush(badge_color)
-        p.drawRoundedRect(QRectF(bx, by, bw, bh), 6.5, 6.5)
+        p.drawRoundedRect(QRectF(bx, by, bw, bh), 6.0, 6.0)
 
-        # Eyes
-        p.setBrush(QColor("#0b0c0f"))
-        p.drawEllipse(QPointF(bx + 8.5, by + 10.0), 1.8, 2.3)
-        p.drawEllipse(QPointF(bx + 17.5, by + 10.0), 1.8, 2.3)
+        # Two little black dot eyes
+        p.setBrush(QColor("#000000"))
+        p.drawEllipse(QPointF(bx + 7.0, by + 9.5), 1.8, 2.3)
+        p.drawEllipse(QPointF(bx + 15.0, by + 9.5), 1.8, 2.3)
 
-        # Label
-        p.setFont(QFont("Segoe UI", 8.5, QFont.Weight.DemiBold))
-        p.setPen(QColor("#8a8e9e"))
+        # Label (.lbl)
+        p.setFont(QFont("Segoe UI", 8, QFont.Weight.DemiBold))
+        p.setPen(QColor("#6b7079"))
         p.drawText(
-            QRectF(bx + bw + 8, py, 48, ph),
+            QRectF(bx + bw + 8, py, 44, ph),
             Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft,
             label,
         )
 
         # Value
-        p.setFont(QFont("Segoe UI", 9, QFont.Weight.Bold))
-        p.setPen(QColor("#ffffff"))
+        p.setFont(QFont("Segoe UI", 8.5, QFont.Weight.Bold))
+        p.setPen(QColor("#f5f6f8"))
         p.drawText(
             QRectF(px, py, pw - 10, ph),
             Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignRight,
