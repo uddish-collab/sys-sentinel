@@ -185,8 +185,8 @@ class TopIslandWindow(QWidget):
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         self.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating)
 
-        # Exact dimensions matching Mochi 640 x 160 layout
-        self.setFixedSize(640, 160)
+        # Minimalist 640 x 136 layout (clean dual-card design without top header bar)
+        self.setFixedSize(640, 136)
 
         # Telemetry data
         self._telemetry: Dict[str, Any] = {
@@ -269,10 +269,10 @@ class TopIslandWindow(QWidget):
         self._pill_timers.append(anim_timer)
         anim_timer.start()
 
-    def get_dock_target_pos(self, senti_size: int = 72) -> QPoint:
-        """Calculate screen position where SENTI nests inside Card 1 (cx: 78, cy: 92)."""
+    def get_dock_target_pos(self, senti_size: int = 80) -> QPoint:
+        """Calculate screen position where SENTI nests inside Card 1 (cx: 78, cy: 68)."""
         dock_x = self.x() + 78 - senti_size // 2
-        dock_y = self.y() + 92 - senti_size // 2
+        dock_y = self.y() + 68 - senti_size // 2
         return QPoint(dock_x, dock_y)
 
     def update_telemetry(self, data: Dict[str, Any]):
@@ -291,35 +291,23 @@ class TopIslandWindow(QWidget):
     def _hit_test(self, pos: QPoint) -> Optional[str]:
         px, py = pos.x(), pos.y()
 
-        # Top bar left tabs (y: 6..28)
-        if 6 <= py <= 28:
-            if 14 <= px <= 44:
-                return "home"
-            elif 49 <= px <= 79:
-                return "chat"
-            elif 84 <= px <= 114:
-                return "plus"
+        # Card 1 sound toggle button (x: 264..292, y: 16..42)
+        if 16 <= py <= 42 and 264 <= px <= 292:
+            return "sound"
 
-        # Top bar right actions (y: 6..28)
-        if 6 <= py <= 28:
-            if 576 <= px <= 598:
-                return "hud"
-            elif 604 <= px <= 626:
-                return "sound"
-
-        # Card 1 jump button [↗] (y: 40..64, x: 300..326)
-        if 40 <= py <= 64 and 300 <= px <= 326:
+        # Card 1 jump button [↗] (x: 294..322, y: 16..42)
+        if 16 <= py <= 42 and 294 <= px <= 322:
             return "hud"
 
-        # Card 1 action links (y: 108..130)
-        if 108 <= py <= 130:
-            if 126 <= px <= 216:
+        # Card 1 action links (y: 84..112)
+        if 84 <= py <= 112:
+            if 124 <= px <= 216:
                 return "hud"
-            elif 226 <= px <= 290:
+            elif 224 <= px <= 290:
                 return "refresh"
 
-        # Card 2 pills area (y: 34..150, x: 342..630) -> Click opens HUD
-        if 34 <= py <= 150 and 342 <= px <= 630:
+        # Card 2 pills area (y: 10..126, x: 342..630) -> Click opens HUD
+        if 10 <= py <= 126 and 342 <= px <= 630:
             return "hud"
 
         return None
@@ -421,92 +409,63 @@ class TopIslandWindow(QWidget):
         w = self.width()
         h = self.height()
 
-        # 1. ENTIRE OUTER ISLAND CONTAINER (#island: background #000, 22px corner radius)
+        # 1. ENTIRE OUTER ISLAND CONTAINER (background #000, 22px corner radius, hairline border)
         island_rect = QRectF(1.0, 1.0, w - 2.0, h - 2.0)
         p.setPen(QPen(QColor(255, 255, 255, 28), 1.0))
         p.setBrush(QColor("#000000"))
         p.drawRoundedRect(island_rect, 22.0, 22.0)
 
-        # 2. Header Bar (#header: height 34px)
-        self._paint_top_bar(p)
-
-        # 3. Overview Left Card (.overview > .left: w=322, h=116, radius=20, bg=#141518)
+        # 2. Left Card (.left: w=322, h=116, radius=20, bg=#141518)
         self._paint_card_1(p)
 
-        # 4. Overview Right Card (.overview > .right: w=288, h=116, radius=20, bg=#141518)
+        # 3. Right Card (.right: w=288, h=116, radius=20, bg=#141518)
         self._paint_card_2(p)
 
-    def _paint_top_bar(self, p: QPainter):
-        """Paint header bar matching Mochi #header tabs and actions."""
-        # Home tab (active .tab.on: 30x22, radius 11, bg #1d1f23, icon #f5f6f8)
-        home_rect = QRectF(14.0, 6.0, 30.0, 22.0)
-        p.setPen(Qt.PenStyle.NoPen)
-        p.setBrush(QColor("#1d1f23"))
-        p.drawRoundedRect(home_rect, 11.0, 11.0)
-        p.setFont(QFont("Segoe UI Emoji", 9, QFont.Weight.Bold))
-        p.setPen(QColor("#f5f6f8"))
-        p.drawText(home_rect, Qt.AlignmentFlag.AlignCenter, "⌂")
+    def _paint_card_1(self, p: QPainter):
+        """Paint Card 1 (Left: 322x116, radius 20, bg #141518, hairline border)."""
+        c1_rect = QRectF(10.0, 10.0, 322.0, 116.0)
+        p.setPen(QPen(QColor(255, 255, 255, 9), 1.0))
+        p.setBrush(QColor("#141518"))
+        p.drawRoundedRect(c1_rect, 20.0, 20.0)
 
-        # Chat tab (.tab: 30x22, icon #8e939c)
-        chat_rect = QRectF(49.0, 6.0, 30.0, 22.0)
-        p.setFont(QFont("Segoe UI Emoji", 8.5))
-        p.setPen(QColor("#00e5ff" if self._hover_target == "chat" else "#8e939c"))
-        p.drawText(chat_rect, Qt.AlignmentFlag.AlignCenter, "💬")
-
-        # Plus tab (.tab: 30x22, icon #8e939c)
-        plus_rect = QRectF(84.0, 5.0, 30.0, 22.0)
-        p.setFont(QFont("Segoe UI", 11, QFont.Weight.Normal))
-        p.setPen(QColor("#ffffff" if self._hover_target == "plus" else "#8e939c"))
-        p.drawText(plus_rect, Qt.AlignmentFlag.AlignCenter, "+")
-
-        # Header actions (right): Gear and Speaker
-        p.setFont(QFont("Segoe UI Emoji", 9))
-        p.setPen(QColor("#ffffff" if self._hover_target == "hud" else "#8e939c"))
-        p.drawText(QRectF(576.0, 6.0, 22.0, 22.0), Qt.AlignmentFlag.AlignCenter, "⚙")
-
+        # Sound toggle button (22x22 circular button to the left of jump button)
         sound_on = True
         if self.is_sound_enabled_getter:
             sound_on = self.is_sound_enabled_getter()
+        sound_rect = QRectF(268.0, 18.0, 22.0, 22.0)
+        p.setPen(Qt.PenStyle.NoPen)
+        p.setBrush(QColor(255, 255, 255, 16 if self._hover_target == "sound" else 8))
+        p.drawEllipse(sound_rect)
         sound_icon = "🔊" if sound_on else "🔇"
         sound_color = QColor(
             "#22d3ee"
             if (sound_on and self._hover_target != "sound")
             else ("#ffffff" if self._hover_target == "sound" else "#8e939c")
         )
+        p.setFont(QFont("Segoe UI Emoji", 9))
         p.setPen(sound_color)
-        p.drawText(QRectF(604.0, 6.0, 22.0, 22.0), Qt.AlignmentFlag.AlignCenter, sound_icon)
+        p.drawText(sound_rect, Qt.AlignmentFlag.AlignCenter, sound_icon)
 
-    def _paint_card_1(self, p: QPainter):
-        """Paint Card 1 (Left: 322x116, radius 20, bg #141518, hairline border)."""
-        c1_rect = QRectF(10.0, 34.0, 322.0, 116.0)
-        p.setPen(QPen(QColor(255, 255, 255, 9), 1.0))
-        p.setBrush(QColor("#141518"))
-        p.drawRoundedRect(c1_rect, 20.0, 20.0)
-
-        # Jump button (.jump: 20x20 circular button at top right)
-        jump_rect = QRectF(304.0, 42.0, 20.0, 20.0)
+        # Jump button (.jump: 22x22 circular button at top right)
+        jump_rect = QRectF(296.0, 18.0, 22.0, 22.0)
         p.setPen(Qt.PenStyle.NoPen)
-        p.setBrush(QColor(255, 255, 255, 14))
+        p.setBrush(QColor(255, 255, 255, 18 if self._hover_target == "hud" else 10))
         p.drawEllipse(jump_rect)
-        p.setFont(QFont("Segoe UI", 9, QFont.Weight.DemiBold))
+        p.setFont(QFont("Segoe UI", 9.5, QFont.Weight.DemiBold))
         p.setPen(QColor("#ffffff" if self._hover_target == "hud" else "#8e939c"))
         p.drawText(jump_rect, Qt.AlignmentFlag.AlignCenter, "↗")
 
-        # Left card text layout (.who at x=126)
-        tx = 126.0
+        # Left card text layout (.who at x=124)
+        tx = 124.0
 
-        # Row 1: Dot + SYS-SENTINEL + Monitor
+        # Row 1: Dot + SYS-SENTINEL
         p.setPen(Qt.PenStyle.NoPen)
         p.setBrush(QColor("#f5f6f8"))
-        p.drawEllipse(QPointF(tx + 4, 56), 3.5, 3.5)
+        p.drawEllipse(QPointF(tx + 4, 40), 3.5, 3.5)
 
         p.setFont(QFont("Segoe UI", 10, QFont.Weight.DemiBold))
         p.setPen(QColor("#f5f6f8"))
-        p.drawText(int(tx + 14), 60, "SYS-SENTINEL")
-
-        p.setFont(QFont("Segoe UI", 9, QFont.Weight.Normal))
-        p.setPen(QColor("#8e939c"))
-        p.drawText(int(tx + 106), 60, "Monitor")
+        p.drawText(int(tx + 14), 44, "SYS-SENTINEL")
 
         # Row 2: Status (.int-status)
         cpu = self._telemetry.get("cpu", 0.0)
@@ -514,25 +473,25 @@ class TopIslandWindow(QWidget):
         bullet_c = QColor("#f59e0b" if is_warn else "#22c55e")
         p.setPen(Qt.PenStyle.NoPen)
         p.setBrush(bullet_c)
-        p.drawEllipse(QPointF(tx + 4, 80), 2.5, 2.5)
+        p.drawEllipse(QPointF(tx + 4, 66), 2.5, 2.5)
 
         status_text = "Alert · High Load" if is_warn else "Connected · nominal"
         p.setFont(QFont("Segoe UI", 8.5))
         p.setPen(QColor("#f59e0b" if is_warn else "#9398a1"))
-        p.drawText(int(tx + 14), 84, status_text)
+        p.drawText(int(tx + 14), 70, status_text)
 
         # Row 3: Action Links (Telemetry HUD, Refresh)
         p.setFont(QFont("Segoe UI", 9, QFont.Weight.DemiBold))
         p.setPen(QColor("#38bdf8" if self._hover_target == "hud" else "#f5f6f8"))
-        p.drawText(int(tx), 118, "Telemetry HUD")
+        p.drawText(int(tx), 96, "Telemetry HUD")
 
         p.setFont(QFont("Segoe UI", 9, QFont.Weight.Normal))
         p.setPen(QColor("#ffffff" if self._hover_target == "refresh" else "#8e939c"))
-        p.drawText(int(tx + 104), 118, "Refresh")
+        p.drawText(int(tx + 104), 96, "Refresh")
 
     def _paint_card_2(self, p: QPainter):
         """Paint Card 2 (Right: 288x116, radius 20, bg #141518, 2x2 pills)."""
-        c2_rect = QRectF(342.0, 34.0, 288.0, 116.0)
+        c2_rect = QRectF(342.0, 10.0, 288.0, 116.0)
         p.setPen(QPen(QColor(255, 255, 255, 9), 1.0))
         p.setBrush(QColor("#141518"))
         p.drawRoundedRect(c2_rect, 20.0, 20.0)
@@ -550,8 +509,8 @@ class TopIslandWindow(QWidget):
 
         col1_x = 350.0
         col2_x = 488.0
-        row1_y = 62.0
-        row2_y = 94.0
+        row1_y = 34.0
+        row2_y = 74.0
         pw = 134.0
         ph = 28.0
 

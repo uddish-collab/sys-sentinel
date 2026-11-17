@@ -66,6 +66,8 @@ def capture_all():
     # Island with docked SENTI
     from senti_island import TopIslandWindow, GreetingBubbleWidget
     island = TopIslandWindow()
+    island._pill_scales = [1.0, 1.0, 1.0, 1.0]
+    island._pill_alphas = [1.0, 1.0, 1.0, 1.0]
     island.update_telemetry({
         "cpu": 38.0,
         "ram": 54.0,
@@ -74,8 +76,9 @@ def capture_all():
         "system_drive": "C:",
     })
     docked_senti = SentiMascot(island)
-    docked_senti.resize(72, 72)
-    docked_senti.move(42, 56)
+    docked_senti.resize(80, 80)
+    dock_pos = island.get_dock_target_pos(80)
+    docked_senti.move(dock_pos.x() - island.x(), dock_pos.y() - island.y())
     docked_senti._timer.stop()
     island.show()
     pix_island = island.grab()

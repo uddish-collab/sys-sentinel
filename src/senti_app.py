@@ -711,7 +711,7 @@ class SentiApp:
 
             # 2. Senti appears directly centered in the island, radiant aura glowing, waves hello
             start_x = self.island.x() + 320 - DOCKED_SIZE // 2
-            start_y = self.island.y() + 90 - DOCKED_SIZE // 2
+            start_y = self.island.y() + 68 - DOCKED_SIZE // 2
             self.companion.move(start_x, start_y)
             self.companion.show()
             self.companion.raise_()
