@@ -1,4 +1,4 @@
-"""System hardware monitoring and background temperature reader for SYS-SENTINEL.
+"""System hardware monitoring and background temperature reader for Sentinel.
 
 Handles Windows 10/11 telemetry safely without blocking the UI.
 """
@@ -311,8 +311,9 @@ def get_system_info(temp_monitor: Optional[TemperatureMonitor] = None) -> Dict[s
     # Cores
     try:
         snapshot["logical_cores"] = psutil.cpu_count(logical=True) or 0
+        snapshot["physical_cores"] = psutil.cpu_count(logical=False) or 0
     except Exception:
-        pass
+        snapshot["physical_cores"] = 0
 
     # Uptime
     try:
@@ -339,7 +340,6 @@ def get_system_info(temp_monitor: Optional[TemperatureMonitor] = None) -> Dict[s
     snapshot["net_recv_kb_s"] = net_d.get("recv_kb_s", 0.0)
     snapshot["net_sent_kb_s"] = net_d.get("sent_kb_s", 0.0)
     snapshot["ping_ms"] = net_d.get("ping_ms")
-    snapshot["process_count"] = snapshot["cpu_stats"].get("process_count", 0)
 
     return snapshot
 
@@ -726,24 +726,6 @@ def get_detailed_gpu_info() -> Dict[str, Any]:
     return monitor.get_stats()
 
 
-def get_top_processes(limit: int = 15, sort_by: str = "cpu") -> List[Dict[str, Any]]:
-    """Return a live-sorted list of top resource-consuming applications."""
-    procs: List[Dict[str, Any]] = []
-    key_field = "cpu_percent" if sort_by == "cpu" else "memory_percent"
-
-    for p in psutil.process_iter(["pid", "name", "cpu_percent", "memory_percent", "status"]):
-        try:
-            item = p.info
-            item["cpu_percent"] = float(item.get("cpu_percent") or 0.0)
-            item["memory_percent"] = float(item.get("memory_percent") or 0.0)
-            procs.append(item)
-        except (psutil.NoSuchProcess, psutil.AccessDenied):
-            continue
-
-    procs.sort(key=lambda x: (x.get(key_field) or 0.0), reverse=True)
-    return procs[:limit]
-
-
 def get_active_connections(limit: int = 25) -> List[Dict[str, Any]]:
     """Return active TCP/UDP ports and network endpoints."""
     active: List[Dict[str, Any]] = []
@@ -767,53 +749,3 @@ def get_active_connections(limit: int = 25) -> List[Dict[str, Any]]:
     except Exception:
         pass
     return active
-
-
-def terminate_process(pid: int) -> bool:
-    """Terminate / kill a process by PID."""
-    try:
-        p = psutil.Process(pid)
-        p.terminate()
-        return True
-    except Exception:
-        return False
-
-
-def suspend_process(pid: int) -> bool:
-    """Suspend execution of a process by PID."""
-    try:
-        p = psutil.Process(pid)
-        p.suspend()
-        return True
-    except Exception:
-        return False
-
-
-def resume_process(pid: int) -> bool:
-    """Resume execution of a suspended process by PID."""
-    try:
-        p = psutil.Process(pid)
-        p.resume()
-        return True
-    except Exception:
-        return False
-
-
-def set_process_priority(pid: int, priority: str) -> bool:
-    """Change process scheduling priority on Windows."""
-    try:
-        p = psutil.Process(pid)
-        prio_map = {
-            "Realtime": getattr(psutil, "REALTIME_PRIORITY_CLASS", 256),
-            "High": getattr(psutil, "HIGH_PRIORITY_CLASS", 128),
-            "Above Normal": getattr(psutil, "ABOVE_NORMAL_PRIORITY_CLASS", 32768),
-            "Normal": getattr(psutil, "NORMAL_PRIORITY_CLASS", 32),
-            "Below Normal": getattr(psutil, "BELOW_NORMAL_PRIORITY_CLASS", 16384),
-            "Idle": getattr(psutil, "IDLE_PRIORITY_CLASS", 64),
-        }
-        if priority in prio_map:
-            p.nice(prio_map[priority])
-            return True
-        return False
-    except Exception:
-        return False

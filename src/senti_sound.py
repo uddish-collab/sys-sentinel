@@ -1,6 +1,6 @@
 """Synthesizes soft interaction tones and plays them via Windows winsound.
 
-Writes WAV files to %LOCALAPPDATA%\\SYS-SENTINEL\\sounds.
+Writes WAV files to %LOCALAPPDATA%\\Sentinel\\sounds.
 No QtMultimedia and no third-party audio libraries used.
 """
 
@@ -34,11 +34,11 @@ SOUND_ALIASES = {
 
 
 def get_sound_dir() -> str:
-    """Return %LOCALAPPDATA%\\SYS-SENTINEL\\sounds."""
+    """Return %LOCALAPPDATA%\\Sentinel\\sounds."""
     local_app_data = os.environ.get("LOCALAPPDATA")
     if not local_app_data:
         local_app_data = os.path.expanduser("~")
-    sound_dir = os.path.join(local_app_data, "SYS-SENTINEL", "sounds")
+    sound_dir = os.path.join(local_app_data, "Sentinel", "sounds")
     os.makedirs(sound_dir, exist_ok=True)
     return sound_dir
 

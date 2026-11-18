@@ -1,10 +1,10 @@
-"""Dedicated individual subsystem monitor panels for SYS-SENTINEL.
+"""Dedicated individual subsystem monitor panels for Sentinel.
 
 Provides isolated, dedicated deep-dive panels for CPU, RAM, Storage,
-Thermals, GPU, Network, Processes, and System metrics without mixing them.
+Thermals, GPU, Network, System, and Settings without mixing them.
 """
 
-from typing import Optional, Dict, Any, List
+from typing import Optional, Dict, Any, List, Callable
 from collections import deque
 import sys
 
@@ -36,23 +36,12 @@ from PySide6.QtWidgets import (
     QTabWidget,
     QTabBar,
     QScrollArea,
-    QTableWidget,
-    QTableWidgetItem,
-    QHeaderView,
-    QLineEdit,
+    QColorDialog,
     QGraphicsOpacityEffect,
-    QMessageBox,
 )
 
-from system_monitor import (
-    terminate_process,
-    suspend_process,
-    resume_process,
-    set_process_priority,
-    get_top_processes,
-    get_active_connections,
-)
 from senti_widgets import SmoothBar
+from senti_settings import SentiSettings, PRESET_THEMES, DEFAULT_COLORS
 
 
 class MiniSparkline(QWidget):
@@ -105,47 +94,72 @@ class MiniSparkline(QWidget):
             step_x = avail_w / (len(samples) - 1)
             pts = []
             for i, val in enumerate(samples):
-                px = pad_x + i * step_x
-                py = pad_y + avail_h - ((val - min_val) / val_range * avail_h)
-                pts.append(QPointF(px, py))
+                norm = (val - min_val) / val_range
+                norm = max(0.0, min(1.0, norm))
+                x = pad_x + (i * step_x)
+                y = pad_y + avail_h - (norm * avail_h)
+                pts.append(QPointF(x, y))
 
-            # Area gradient
-            path_area = QPainterPath()
-            path_area.moveTo(pad_x, h - pad_y)
+            # Fill path
+            fill_path = QPainterPath()
+            fill_path.moveTo(pad_x, pad_y + avail_h)
             for pt in pts:
-                path_area.lineTo(pt)
-            path_area.lineTo(pts[-1].x(), h - pad_y)
-            path_area.closeSubpath()
+                fill_path.lineTo(pt)
+            fill_path.lineTo(pad_x + avail_w, pad_y + avail_h)
+            fill_path.closeSubpath()
 
-            grad = QLinearGradient(0, pad_y, 0, h - pad_y)
-            grad.setColorAt(0.0, QColor(self.color.red(), self.color.green(), self.color.blue(), 90))
-            grad.setColorAt(1.0, QColor(self.color.red(), self.color.green(), self.color.blue(), 0))
-            p.fillPath(path_area, grad)
+            grad = QLinearGradient(0, pad_y, 0, pad_y + avail_h)
+            c_top = QColor(self.color)
+            c_top.setAlpha(80)
+            c_bot = QColor(self.color)
+            c_bot.setAlpha(5)
+            grad.setColorAt(0.0, c_top)
+            grad.setColorAt(1.0, c_bot)
+
+            p.setPen(Qt.PenStyle.NoPen)
+            p.setBrush(QBrush(grad))
+            p.drawPath(fill_path)
 
             # Stroke line
-            path_line = QPainterPath()
-            path_line.moveTo(pts[0])
+            line_path = QPainterPath()
+            line_path.moveTo(pts[0])
             for pt in pts[1:]:
-                path_line.lineTo(pt)
-            p.setPen(QPen(self.color, 1.8))
-            p.drawPath(path_line)
+                line_path.lineTo(pt)
 
-            # Current readout overlay
-            curr = samples[-1]
-            p.setPen(QColor("#f8fafc"))
-            p.setFont(QFont("Segoe UI", 9, QFont.Weight.Bold))
-            text = f"{curr:.1f}{self.unit}"
-            p.drawText(QRectF(w - 70, 4, 62, 18), Qt.AlignmentFlag.AlignRight, text)
+            p.setPen(QPen(self.color, 1.8))
+            p.setBrush(Qt.BrushStyle.NoBrush)
+            p.drawPath(line_path)
+
+            # Current reading pill badge
+            cur_val = samples[-1]
+            p.setPen(self.color)
+            p.setFont(QFont("Segoe UI", 8, QFont.Weight.Bold))
+            tag_text = f"{cur_val:.1f}{self.unit}"
+            p.drawText(QRectF(w - 74, 4, 66, 16), Qt.AlignmentFlag.AlignRight, tag_text)
         finally:
             p.end()
 
 
 class SentiDashboardWindow(QWidget):
-    """Master dedicated subsystem monitor with individual tabs for each pill."""
+    """Comprehensive, dedicated subsystem monitor panels for Sentinel.
+    
+    Each pill opens only its dedicated subsystem view (CPU, RAM, DISK, TEMP, GPU, NET, SYS, SETTINGS).
+    Features smooth cross-fade navigation and zero window blinking.
+    """
 
-    def __init__(self, parent: Optional[QWidget] = None):
+    def __init__(
+        self,
+        settings: Optional[Any] = None,
+        on_colors_changed: Optional[Callable[[], None]] = None,
+        on_sound_toggled: Optional[Callable[[bool], None]] = None,
+        parent: Optional[QWidget] = None,
+    ):
         super().__init__(parent)
-        self.setWindowTitle("SYS-SENTINEL — System Telemetry")
+        self.settings = settings or SentiSettings()
+        self.on_colors_changed = on_colors_changed
+        self.on_sound_toggled = on_sound_toggled
+
+        self.setWindowTitle("Sentinel — System Telemetry")
         self.setObjectName("dashboardRoot")
         self.setFixedSize(720, 520)
 
@@ -162,7 +176,7 @@ class SentiDashboardWindow(QWidget):
         self._opacity_effect.setOpacity(1.0)
         self.setGraphicsEffect(self._opacity_effect)
         self._fade_anim = QPropertyAnimation(self._opacity_effect, b"opacity", self)
-        self._fade_anim.setDuration(160)
+        self._fade_anim.setDuration(150)
         self._fade_anim.setEasingCurve(QEasingCurve.Type.InOutCubic)
 
         # Dragging state
@@ -179,16 +193,11 @@ class SentiDashboardWindow(QWidget):
         root.setContentsMargins(14, 12, 14, 12)
         root.setSpacing(10)
 
-        # Top Bar: Subsystem Title + Badge + Close Button
+        # Top Bar: Minimalist Luxury Brand Breadcrumb + Close Button
         top_bar = QHBoxLayout()
-        self.lbl_title = QLabel("SYS-SENTINEL  //  CPU MONITOR")
-        self.lbl_title.setStyleSheet("color: #22c55e; font-size: 11px; font-weight: 700; letter-spacing: 1.5px;")
+        self.lbl_title = QLabel("SENTINEL  ·  CPU")
+        self.lbl_title.setStyleSheet("color: #22c55e; font-size: 11px; font-weight: 700; letter-spacing: 2px;")
         top_bar.addWidget(self.lbl_title)
-        top_bar.addSpacing(10)
-
-        self.lbl_badge = QLabel("DEDICATED VIEW")
-        self.lbl_badge.setStyleSheet("color: #6b7079; font-size: 9px; font-weight: 700; letter-spacing: 1px; border: 1px solid #1c2028; border-radius: 3px; padding: 2px 6px; background: #0d0e14;")
-        top_bar.addWidget(self.lbl_badge)
         top_bar.addStretch()
 
         btn_close = QPushButton("✕")
@@ -223,27 +232,27 @@ class SentiDashboardWindow(QWidget):
                 top: 0px;
             }
         """)
-        # Hide tab bar completely: only the dedicated page for the clicked pill appears
         self.tabs.tabBar().hide()
+        self.tabs.tabBar().setFixedHeight(0)
 
-        # Initialize Individual Dedicated Subsystem Panels
+        # Initialize Individual Dedicated Subsystem Panels (8 Subsystems, aligned 1:1 with Island)
         self.tab_cpu = self._build_cpu_tab()
         self.tab_ram = self._build_ram_tab()
-        self.tab_disk = self._build_disk_tab()
-        self.tab_temp = self._build_temp_tab()
         self.tab_gpu = self._build_gpu_tab()
         self.tab_net = self._build_net_tab()
-        self.tab_procs = self._build_procs_tab()
+        self.tab_disk = self._build_disk_tab()
+        self.tab_temp = self._build_temp_tab()
         self.tab_sys = self._build_sys_tab()
+        self.tab_settings = self._build_settings_tab()
 
         self.tabs.addTab(self.tab_cpu, "CPU")
         self.tabs.addTab(self.tab_ram, "MEMORY")
-        self.tabs.addTab(self.tab_disk, "STORAGE")
-        self.tabs.addTab(self.tab_temp, "THERMALS")
         self.tabs.addTab(self.tab_gpu, "GPU")
         self.tabs.addTab(self.tab_net, "NETWORK")
-        self.tabs.addTab(self.tab_procs, "PROCESSES")
+        self.tabs.addTab(self.tab_disk, "STORAGE")
+        self.tabs.addTab(self.tab_temp, "THERMALS")
         self.tabs.addTab(self.tab_sys, "SYSTEM")
+        self.tabs.addTab(self.tab_settings, "SETTINGS")
 
         root.addWidget(self.tabs)
 
@@ -252,64 +261,139 @@ class SentiDashboardWindow(QWidget):
         w = QWidget()
         lay = QVBoxLayout(w)
         lay.setContentsMargins(12, 12, 12, 12)
-        lay.setSpacing(10)
+        lay.setSpacing(8)
 
-        # Header summary
+        # 1. Header Overview: Overall Load, Processor Name & Live Clock Frequency
         top_row = QHBoxLayout()
         self.lbl_cpu_main = QLabel("CPU Load: —%")
         self.lbl_cpu_main.setStyleSheet("color: #22c55e; font-size: 20px; font-weight: 700;")
         top_row.addWidget(self.lbl_cpu_main)
+        top_row.addSpacing(14)
+
+        self.lbl_cpu_model = QLabel("Processor: Detecting...")
+        self.lbl_cpu_model.setStyleSheet("color: #8c9dbd; font-size: 11px; font-weight: 600;")
+        top_row.addWidget(self.lbl_cpu_model)
         top_row.addStretch()
 
         self.lbl_cpu_freq = QLabel("Frequency: — MHz")
-        self.lbl_cpu_freq.setStyleSheet("color: #8c9dbd; font-size: 12px; font-weight: 600;")
+        self.lbl_cpu_freq.setStyleSheet("color: #22c55e; font-size: 12px; font-weight: 600;")
         top_row.addWidget(self.lbl_cpu_freq)
         lay.addLayout(top_row)
 
-        # Sparkline
+        # 2. Historical 60s Telemetry Sparkline
         self.spark_cpu = MiniSparkline(QColor("#22c55e"), "%", self)
+        self.spark_cpu.setFixedHeight(54)
         lay.addWidget(self.spark_cpu)
 
-        # Per-core loads grid
-        lbl_cores = QLabel("LOGICAL CORES UTILIZATION")
-        lbl_cores.setStyleSheet("color: #8c9dbd; font-size: 10px; font-weight: 700; letter-spacing: 1px;")
-        lay.addWidget(lbl_cores)
+        # 3. Overview Telemetry Badges (Architecture, Clock Speed, Sockets, Cores)
+        specs_row = QHBoxLayout()
+        specs_row.setSpacing(8)
+        self.lbl_cpu_threads = QLabel("— Threads")
+        self.lbl_cpu_physical = QLabel("— Cores")
+        self.lbl_cpu_cur_freq = QLabel("— MHz")
+        self.lbl_cpu_active_threads = QLabel("— Threads")
 
-        self.core_bars: List[SmoothBar] = []
+        for title, lbl, parent_lay in [
+            ("LOGICAL THREADS", self.lbl_cpu_threads, specs_row),
+            ("PHYSICAL CORES", self.lbl_cpu_physical, specs_row),
+            ("CLOCK SPEED", self.lbl_cpu_cur_freq, specs_row),
+            ("ACTIVE THREADS", self.lbl_cpu_active_threads, specs_row),
+        ]:
+            card = QFrame()
+            card.setStyleSheet("""
+                QFrame {
+                    background: #0d0e14;
+                    border: 1px solid #1c2028;
+                    border-radius: 6px;
+                }
+                QLabel {
+                    border: none;
+                    background: transparent;
+                }
+            """)
+            c_lay = QVBoxLayout(card)
+            c_lay.setContentsMargins(8, 6, 8, 6)
+            c_lay.setSpacing(2)
+            t_lbl = QLabel(title)
+            t_lbl.setStyleSheet("color: #6b7079; font-size: 8.5px; font-weight: 700; letter-spacing: 0.5px;")
+            lbl.setStyleSheet("color: #f8fafc; font-size: 12px; font-weight: 700;")
+            c_lay.addWidget(t_lbl)
+            c_lay.addWidget(lbl)
+            parent_lay.addWidget(card)
+        lay.addLayout(specs_row)
+
+        # 4. Dynamic Logical Cores Section Header
+        self.lbl_cores_header = QLabel("LOGICAL CORES")
+        self.lbl_cores_header.setStyleSheet("color: #8c9dbd; font-size: 10px; font-weight: 700; letter-spacing: 1.5px;")
+        lay.addWidget(self.lbl_cores_header)
+
+        # 5. Scrollable Adaptive Cores Grid (Supports any CPU: 2, 4, 6, 8, 12, 16, 24, 32, 64+ cores)
+        self.cpu_cores_scroll = QScrollArea()
+        self.cpu_cores_scroll.setWidgetResizable(True)
+        self.cpu_cores_scroll.setFrameShape(QFrame.Shape.NoFrame)
+        self.cpu_cores_scroll.setStyleSheet("""
+            QScrollArea {
+                background: #111317;
+                border: 1px solid #1c2028;
+                border-radius: 6px;
+            }
+            QScrollBar:vertical {
+                background: #0d0e14;
+                width: 8px;
+                margin: 0px;
+                border-radius: 4px;
+            }
+            QScrollBar::handle:vertical {
+                background: #252934;
+                min-height: 24px;
+                border-radius: 4px;
+            }
+            QScrollBar::handle:vertical:hover {
+                background: #3b4252;
+            }
+            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
+                height: 0px;
+            }
+            QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {
+                background: none;
+            }
+        """)
+        self.cpu_cores_scroll.viewport().setStyleSheet("background: #111317; border: none;")
+        self.cpu_cores_container = QWidget()
+        self.cpu_cores_container.setStyleSheet("background: #111317;")
+        self.cores_grid = QGridLayout(self.cpu_cores_container)
+        self.cores_grid.setContentsMargins(8, 8, 8, 8)
+        self.cores_grid.setSpacing(8)
+        self.cpu_cores_scroll.setWidget(self.cpu_cores_container)
+        lay.addWidget(self.cpu_cores_scroll)
+
+        # Keep tracking lists for telemetry updates
+        self._cpu_tiles: List[Dict[str, Any]] = []
         self.core_labels: List[QLabel] = []
-        cores_layout = QGridLayout()
-        cores_layout.setSpacing(8)
+        self.core_bars: List[SmoothBar] = []
 
-        # Prepare for up to 16 cores
-        for i in range(16):
-            r = i // 4
-            c = i % 4
-            cell = QVBoxLayout()
-            lbl = QLabel(f"Core {i}: —%")
-            lbl.setStyleSheet("color: #cdd9ed; font-size: 11px;")
-            bar = SmoothBar(self)
-            bar.setFixedHeight(6)
-            cell.addWidget(lbl)
-            cell.addWidget(bar)
-            cores_layout.addLayout(cell, r, c)
-            self.core_labels.append(lbl)
-            self.core_bars.append(bar)
-
-        lay.addLayout(cores_layout)
-
-        # Activity stats
+        # 6. Bottom Hardware Activity Statistics Frame
         stats_frame = QFrame()
-        stats_frame.setStyleSheet("background: #0d0e14; border: 1px solid #1c2028; border-radius: 6px; padding: 6px;")
+        stats_frame.setStyleSheet("""
+            QFrame {
+                background: #0d0e14;
+                border: 1px solid #1c2028;
+                border-radius: 6px;
+            }
+            QLabel {
+                border: none;
+                background: transparent;
+            }
+        """)
         s_lay = QHBoxLayout(stats_frame)
-        self.lbl_proc_count = QLabel("Processes: —")
-        self.lbl_thread_count = QLabel("Threads: —")
-        self.lbl_ctx_switches = QLabel("Ctx Switches: —")
-        self.lbl_interrupts = QLabel("Interrupts: —")
-        for lbl in (self.lbl_proc_count, self.lbl_thread_count, self.lbl_ctx_switches, self.lbl_interrupts):
-            lbl.setStyleSheet("color: #8c9dbd; font-size: 11px;")
+        s_lay.setContentsMargins(12, 6, 12, 6)
+        self.lbl_ctx_switches = QLabel("Context Switches: —")
+        self.lbl_interrupts = QLabel("Hardware Interrupts: —")
+        for lbl in (self.lbl_ctx_switches, self.lbl_interrupts):
+            lbl.setStyleSheet("color: #8c9dbd; font-size: 11px; font-weight: 600;")
             s_lay.addWidget(lbl)
         lay.addWidget(stats_frame)
-        lay.addStretch()
+
         return w
 
     # --- TAB 2: RAM (Memory Utilization) ---
@@ -320,7 +404,7 @@ class SentiDashboardWindow(QWidget):
         lay.setSpacing(10)
 
         top_row = QHBoxLayout()
-        self.lbl_ram_main = QLabel("Memory Usage: —%")
+        self.lbl_ram_main = QLabel("Memory: —%")
         self.lbl_ram_main.setStyleSheet("color: #f5a524; font-size: 20px; font-weight: 700;")
         top_row.addWidget(self.lbl_ram_main)
         top_row.addStretch()
@@ -333,59 +417,59 @@ class SentiDashboardWindow(QWidget):
         self.spark_ram = MiniSparkline(QColor("#f5a524"), "%", self)
         lay.addWidget(self.spark_ram)
 
-        # Granular breakdown cards
         grid = QGridLayout()
         grid.setSpacing(8)
 
-        self.lbl_ram_inuse = QLabel("In-Use: — GB")
-        self.lbl_ram_avail = QLabel("Available: — GB")
-        self.lbl_ram_cached = QLabel("Cached / Standby: — GB")
-        self.lbl_ram_free = QLabel("Free: — GB")
+        self.lbl_ram_inuse = QLabel("— GB")
+        self.lbl_ram_avail = QLabel("— GB")
+        self.lbl_ram_cached = QLabel("— GB")
+        self.lbl_ram_free = QLabel("— GB")
 
         cards = [
-            ("IN-USE MEMORY", self.lbl_ram_inuse),
-            ("AVAILABLE CAPACITY", self.lbl_ram_avail),
-            ("CACHED / STANDBY", self.lbl_ram_cached),
+            ("IN USE", self.lbl_ram_inuse),
+            ("AVAILABLE", self.lbl_ram_avail),
+            ("STANDBY CACHE", self.lbl_ram_cached),
             ("FREE PHYSICAL", self.lbl_ram_free),
         ]
-        for idx, (title, val_lbl) in enumerate(cards):
+        for idx, (title, lbl) in enumerate(cards):
+            r = idx // 2
+            c = idx % 2
             f = QFrame()
-            f.setStyleSheet("background: #0d0e14; border: 1px solid #1c2028; border-radius: 6px; padding: 6px;")
+            f.setStyleSheet("background: #0d0e14; border: 1px solid #1c2028; border-radius: 6px; padding: 10px;")
             flay = QVBoxLayout(f)
             t = QLabel(title)
-            t.setStyleSheet("color: #6b7079; font-size: 10px; font-weight: 700;")
-            val_lbl.setStyleSheet("color: #f8fafc; font-size: 13px; font-weight: 600;")
+            t.setStyleSheet("color: #6b7079; font-size: 9px; font-weight: 700; letter-spacing: 0.5px;")
+            lbl.setStyleSheet("color: #f8fafc; font-size: 14px; font-weight: 700;")
             flay.addWidget(t)
-            flay.addWidget(val_lbl)
-            grid.addWidget(f, idx // 2, idx % 2)
+            flay.addWidget(lbl)
+            grid.addWidget(f, r, c)
         lay.addLayout(grid)
 
-        # Swap / Pagefile section
-        swap_box = QFrame()
-        swap_box.setStyleSheet("background: #0d0e14; border: 1px solid #1c2028; border-radius: 6px; padding: 8px;")
-        sb_lay = QVBoxLayout(swap_box)
-        self.lbl_swap = QLabel("Swap / Pagefile Usage: — GB (—%)")
-        self.lbl_swap.setStyleSheet("color: #cdd9ed; font-size: 11px; font-weight: 600;")
+        swap_frame = QFrame()
+        swap_frame.setStyleSheet("background: #0d0e14; border: 1px solid #1c2028; border-radius: 6px; padding: 8px;")
+        swap_lay = QVBoxLayout(swap_frame)
+        self.lbl_swap = QLabel("Paging File: — GB / — GB (—%)")
+        self.lbl_swap.setStyleSheet("color: #8c9dbd; font-size: 11px;")
         self.bar_swap = SmoothBar(self)
         self.bar_swap.setFixedHeight(6)
-        sb_lay.addWidget(self.lbl_swap)
-        sb_lay.addWidget(self.bar_swap)
-        lay.addWidget(swap_box)
+        swap_lay.addWidget(self.lbl_swap)
+        swap_lay.addWidget(self.bar_swap)
+        lay.addWidget(swap_frame)
+
         lay.addStretch()
         return w
 
-    # --- TAB 3: STORAGE (Disk Usage & Live I/O) ---
+    # --- TAB 3: STORAGE (Disk Usage & I/O Speeds) ---
     def _build_disk_tab(self) -> QWidget:
         w = QWidget()
         lay = QVBoxLayout(w)
         lay.setContentsMargins(12, 12, 12, 12)
         lay.setSpacing(10)
 
-        # I/O Throughput Row
         io_row = QHBoxLayout()
-        self.lbl_disk_read = QLabel("Read: 0.0 MB/s")
+        self.lbl_disk_read = QLabel("Read: 0.00 MB/s")
         self.lbl_disk_read.setStyleSheet("color: #22c55e; font-size: 16px; font-weight: 700;")
-        self.lbl_disk_write = QLabel("Write: 0.0 MB/s")
+        self.lbl_disk_write = QLabel("Write: 0.00 MB/s")
         self.lbl_disk_write.setStyleSheet("color: #00e5ff; font-size: 16px; font-weight: 700;")
         io_row.addWidget(self.lbl_disk_read)
         io_row.addSpacing(20)
@@ -396,29 +480,57 @@ class SentiDashboardWindow(QWidget):
         self.spark_disk = MiniSparkline(QColor("#6366f1"), "%", self)
         lay.addWidget(self.spark_disk)
 
-        lbl_parts = QLabel("MOUNTED DRIVES & PARTITIONS")
+        lbl_parts = QLabel("STORAGE VOLUMES")
         lbl_parts.setStyleSheet("color: #8c9dbd; font-size: 10px; font-weight: 700; letter-spacing: 1px;")
         lay.addWidget(lbl_parts)
 
-        # Scrollable partitions list
-        scroll = QScrollArea()
-        scroll.setWidgetResizable(True)
-        scroll.setStyleSheet("QScrollArea { border: none; background: transparent; }")
-        self.disk_container = QWidget()
-        self.disk_part_layout = QVBoxLayout(self.disk_container)
-        self.disk_part_layout.setContentsMargins(0, 0, 0, 0)
-        self.disk_part_layout.setSpacing(6)
-        scroll.setWidget(self.disk_container)
-        lay.addWidget(scroll)
+        self.disk_scroll = QScrollArea()
+        self.disk_scroll.setWidgetResizable(True)
+        self.disk_scroll.setFrameShape(QFrame.Shape.NoFrame)
+        self.disk_scroll.setStyleSheet("""
+            QScrollArea {
+                background: #111317;
+                border: 1px solid #1c2028;
+                border-radius: 6px;
+            }
+            QScrollBar:vertical {
+                background: #0d0e14;
+                width: 8px;
+                margin: 0px;
+                border-radius: 4px;
+            }
+            QScrollBar::handle:vertical {
+                background: #252934;
+                min-height: 24px;
+                border-radius: 4px;
+            }
+            QScrollBar::handle:vertical:hover {
+                background: #3b4252;
+            }
+            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
+                height: 0px;
+            }
+            QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {
+                background: none;
+            }
+        """)
+        self.disk_scroll.viewport().setStyleSheet("background: #111317; border: none;")
+        self.disk_part_container = QWidget()
+        self.disk_part_container.setStyleSheet("background: #111317;")
+        self.disk_part_layout = QVBoxLayout(self.disk_part_container)
+        self.disk_part_layout.setContentsMargins(8, 8, 8, 8)
+        self.disk_part_layout.setSpacing(8)
+        self.disk_scroll.setWidget(self.disk_part_container)
+        lay.addWidget(self.disk_scroll)
 
         return w
 
-    # --- TAB 4: THERMALS (Sensors & Fan Speeds) ---
+    # --- TAB 4: THERMALS (Temperatures & Fan Speeds) ---
     def _build_temp_tab(self) -> QWidget:
         w = QWidget()
         lay = QVBoxLayout(w)
         lay.setContentsMargins(12, 12, 12, 12)
-        lay.setSpacing(12)
+        lay.setSpacing(10)
 
         top_row = QHBoxLayout()
         self.lbl_temp_main = QLabel("Package Temp: —°C")
@@ -426,80 +538,87 @@ class SentiDashboardWindow(QWidget):
         top_row.addWidget(self.lbl_temp_main)
         top_row.addStretch()
 
-        self.lbl_temp_status = QLabel("Thermal Status: NOMINAL")
-        self.lbl_temp_status.setStyleSheet("color: #22c55e; font-size: 11px; font-weight: 700; background: #0d1a14; border: 1px solid #1c3d28; padding: 4px 8px; border-radius: 4px;")
+        self.lbl_temp_status = QLabel("Thermal State: Normal")
+        self.lbl_temp_status.setStyleSheet("color: #22c55e; font-size: 12px; font-weight: 600;")
         top_row.addWidget(self.lbl_temp_status)
         lay.addLayout(top_row)
 
         self.spark_temp = MiniSparkline(QColor("#f4505e"), "°C", self)
         lay.addWidget(self.spark_temp)
 
-        # Thermal cards
-        f = QFrame()
-        f.setStyleSheet("background: #0d0e14; border: 1px solid #1c2028; border-radius: 6px; padding: 10px;")
-        flay = QVBoxLayout(f)
-        self.lbl_acpi_temp = QLabel("ACPI Thermal Zone: Active Sensor Active")
-        self.lbl_fan_rpm = QLabel("Cooling Fans: Automatic Controller Managed")
-        self.lbl_throttle = QLabel("Thermal Throttling: None Detected")
-        for lbl in (self.lbl_acpi_temp, self.lbl_fan_rpm, self.lbl_throttle):
+        f_zones = QFrame()
+        f_zones.setStyleSheet("background: #0d0e14; border: 1px solid #1c2028; border-radius: 6px; padding: 10px;")
+        zlay = QVBoxLayout(f_zones)
+        self.lbl_cpu_temp = QLabel("CPU Core Thermal Sensor: Detecting...")
+        self.lbl_gpu_temp = QLabel("GPU Package Sensor: Detecting...")
+        self.lbl_fan_speed = QLabel("Cooling Fan: Regulated by System Firmware")
+        for lbl in (self.lbl_cpu_temp, self.lbl_gpu_temp, self.lbl_fan_speed):
             lbl.setStyleSheet("color: #cdd9ed; font-size: 12px;")
-            flay.addWidget(lbl)
-        lay.addWidget(f)
+            zlay.addWidget(lbl)
+        lay.addWidget(f_zones)
+
+        self.lbl_temp_note = QLabel("Note: Motherboard and vendor fan speeds are read directly from Windows ACPI/WMI sensors.")
+        self.lbl_temp_note.setStyleSheet("color: #6b7079; font-size: 10px; font-style: italic;")
+        lay.addWidget(self.lbl_temp_note)
+
         lay.addStretch()
         return w
 
-    # --- TAB 5: GPU (Graphics & VRAM) ---
+    # --- TAB 5: GPU (Utilization & VRAM) ---
     def _build_gpu_tab(self) -> QWidget:
         w = QWidget()
         lay = QVBoxLayout(w)
         lay.setContentsMargins(12, 12, 12, 12)
         lay.setSpacing(10)
 
-        # Header summary
         top_row = QHBoxLayout()
-        self.lbl_gpu_load = QLabel("GPU Load: 0.0%")
-        self.lbl_gpu_load.setStyleSheet("color: #00e5ff; font-size: 20px; font-weight: 700;")
-        top_row.addWidget(self.lbl_gpu_load)
+        self.lbl_gpu_main = QLabel("GPU Load: —%")
+        self.lbl_gpu_main.setStyleSheet("color: #00e5ff; font-size: 20px; font-weight: 700;")
+        top_row.addWidget(self.lbl_gpu_main)
         top_row.addStretch()
 
-        self.lbl_gpu_vram = QLabel("Dedicated VRAM: Detecting...")
-        self.lbl_gpu_vram.setStyleSheet("color: #8c9dbd; font-size: 12px; font-weight: 600;")
-        top_row.addWidget(self.lbl_gpu_vram)
+        self.lbl_gpu_name = QLabel("Graphics Adapter: Detecting...")
+        self.lbl_gpu_name.setStyleSheet("color: #8c9dbd; font-size: 12px; font-weight: 600;")
+        top_row.addWidget(self.lbl_gpu_name)
         lay.addLayout(top_row)
 
-        # GPU Sparkline
         self.spark_gpu = MiniSparkline(QColor("#00e5ff"), "%", self)
         lay.addWidget(self.spark_gpu)
 
-        # Specs card
-        f = QFrame()
-        f.setStyleSheet("background: #0d0e14; border: 1px solid #1c2028; border-radius: 6px; padding: 12px;")
-        flay = QVBoxLayout(f)
-        self.lbl_gpu_name = QLabel("Graphics Adapter: Detecting...")
-        self.lbl_gpu_driver = QLabel("Driver Version: —")
-        self.lbl_gpu_engine = QLabel("3D Acceleration: Active / DirectX Compatible")
-        for lbl in (self.lbl_gpu_name, self.lbl_gpu_driver, self.lbl_gpu_engine):
-            lbl.setStyleSheet("color: #cdd9ed; font-size: 12px; font-weight: 600;")
-            flay.addWidget(lbl)
-        lay.addWidget(f)
+        vram_frame = QFrame()
+        vram_frame.setStyleSheet("background: #0d0e14; border: 1px solid #1c2028; border-radius: 6px; padding: 10px;")
+        vlay = QVBoxLayout(vram_frame)
+        self.lbl_vram = QLabel("Dedicated Video Memory (VRAM): — GB used of — GB")
+        self.lbl_vram.setStyleSheet("color: #cdd9ed; font-size: 12px; font-weight: 600;")
+        self.bar_vram = SmoothBar(self)
+        self.bar_vram.setFixedHeight(8)
+        self.lbl_gpu_driver = QLabel("Driver Version: Detecting...")
+        self.lbl_gpu_driver.setStyleSheet("color: #6b7079; font-size: 11px;")
+
+        vlay.addWidget(self.lbl_vram)
+        vlay.addWidget(self.bar_vram)
+        vlay.addSpacing(4)
+        vlay.addWidget(self.lbl_gpu_driver)
+        lay.addWidget(vram_frame)
+
         lay.addStretch()
         return w
 
-    # --- TAB 6: NETWORK (Bandwidth & Ping Latency Graphs) ---
+    # --- TAB 6: NETWORK (3 Dedicated Telemetry Graphs: Download, Upload, Ping) ---
     def _build_net_tab(self) -> QWidget:
         w = QWidget()
         lay = QVBoxLayout(w)
         lay.setContentsMargins(12, 12, 12, 12)
-        lay.setSpacing(10)
+        lay.setSpacing(8)
 
-        # 1. Download Graph Card
+        # Graph 1: Live Download Throughput
         c_down = QFrame()
-        c_down.setStyleSheet("background: #0d0e14; border: 1px solid #1c2028; border-radius: 6px; padding: 10px;")
+        c_down.setStyleSheet("background: #0d0e14; border: 1px solid #1c2028; border-radius: 6px; padding: 6px 10px;")
         lay_down = QVBoxLayout(c_down)
-        lay_down.setContentsMargins(8, 8, 8, 8)
-        lay_down.setSpacing(6)
+        lay_down.setContentsMargins(4, 4, 4, 4)
+        lay_down.setSpacing(4)
         row_d = QHBoxLayout()
-        lbl_d_title = QLabel("↓ LIVE DOWNLOAD THROUGHPUT")
+        lbl_d_title = QLabel("DOWNLOAD RATE")
         lbl_d_title.setStyleSheet("color: #22c55e; font-size: 11px; font-weight: 700; letter-spacing: 1px;")
         self.lbl_net_down = QLabel("0.0 KB/s")
         self.lbl_net_down.setStyleSheet("color: #22c55e; font-size: 15px; font-weight: 700;")
@@ -516,14 +635,14 @@ class SentiDashboardWindow(QWidget):
         lay_down.addWidget(self.spark_net_down)
         lay.addWidget(c_down)
 
-        # 2. Upload Graph Card
+        # Graph 2: Live Upload Throughput
         c_up = QFrame()
-        c_up.setStyleSheet("background: #0d0e14; border: 1px solid #1c2028; border-radius: 6px; padding: 10px;")
+        c_up.setStyleSheet("background: #0d0e14; border: 1px solid #1c2028; border-radius: 6px; padding: 6px 10px;")
         lay_up = QVBoxLayout(c_up)
-        lay_up.setContentsMargins(8, 8, 8, 8)
-        lay_up.setSpacing(6)
+        lay_up.setContentsMargins(4, 4, 4, 4)
+        lay_up.setSpacing(4)
         row_u = QHBoxLayout()
-        lbl_u_title = QLabel("↑ LIVE UPLOAD THROUGHPUT")
+        lbl_u_title = QLabel("UPLOAD RATE")
         lbl_u_title.setStyleSheet("color: #00e5ff; font-size: 11px; font-weight: 700; letter-spacing: 1px;")
         self.lbl_net_up = QLabel("0.0 KB/s")
         self.lbl_net_up.setStyleSheet("color: #00e5ff; font-size: 15px; font-weight: 700;")
@@ -540,14 +659,14 @@ class SentiDashboardWindow(QWidget):
         lay_up.addWidget(self.spark_net_up)
         lay.addWidget(c_up)
 
-        # 3. Latency & Ping Graph Card
+        # Graph 3: Live Ping / Latency Tracker
         c_ping = QFrame()
-        c_ping.setStyleSheet("background: #0d0e14; border: 1px solid #1c2028; border-radius: 6px; padding: 10px;")
+        c_ping.setStyleSheet("background: #0d0e14; border: 1px solid #1c2028; border-radius: 6px; padding: 6px 10px;")
         lay_ping = QVBoxLayout(c_ping)
-        lay_ping.setContentsMargins(8, 8, 8, 8)
-        lay_ping.setSpacing(6)
+        lay_ping.setContentsMargins(4, 4, 4, 4)
+        lay_ping.setSpacing(4)
         row_p = QHBoxLayout()
-        lbl_p_title = QLabel("⚡ ROUND-TRIP LATENCY (PING)")
+        lbl_p_title = QLabel("ROUND-TRIP LATENCY (PING)")
         lbl_p_title.setStyleSheet("color: #a855f7; font-size: 11px; font-weight: 700; letter-spacing: 1px;")
         self.lbl_ping = QLabel("— ms")
         self.lbl_ping.setStyleSheet("color: #a855f7; font-size: 15px; font-weight: 700;")
@@ -567,73 +686,7 @@ class SentiDashboardWindow(QWidget):
         lay.addStretch()
         return w
 
-    # --- TAB 7: PROCESSES (Resource Consumers & Control) ---
-    def _build_procs_tab(self) -> QWidget:
-        w = QWidget()
-        lay = QVBoxLayout(w)
-        lay.setContentsMargins(12, 12, 12, 12)
-        lay.setSpacing(8)
-
-        # Controls & Search Row
-        ctrl_row = QHBoxLayout()
-        self.proc_search = QLineEdit()
-        self.proc_search.setPlaceholderText("Filter processes by name or PID...")
-        self.proc_search.setStyleSheet("""
-            QLineEdit {
-                background: #0d0e14;
-                border: 1px solid #20242c;
-                border-radius: 4px;
-                color: #f8fafc;
-                padding: 4px 8px;
-                font-size: 11px;
-            }
-        """)
-        self.proc_search.textChanged.connect(self._filter_procs)
-        ctrl_row.addWidget(self.proc_search)
-
-        self.btn_kill = QPushButton("🛑 End Process")
-        self.btn_kill.setStyleSheet("background: #3a141a; color: #ff5260; border: 1px solid #63222b; padding: 5px 10px; border-radius: 4px; font-weight: bold; font-size: 11px;")
-        self.btn_kill.clicked.connect(self._kill_selected_proc)
-        ctrl_row.addWidget(self.btn_kill)
-
-        self.btn_suspend = QPushButton("⏸ Suspend")
-        self.btn_suspend.setStyleSheet("background: #1c1a24; color: #cdd9ed; border: 1px solid #2d2b38; padding: 5px 10px; border-radius: 4px; font-size: 11px;")
-        self.btn_suspend.clicked.connect(self._toggle_suspend_proc)
-        ctrl_row.addWidget(self.btn_suspend)
-
-        lay.addLayout(ctrl_row)
-
-        # Process Table
-        self.table_procs = QTableWidget()
-        self.table_procs.setColumnCount(5)
-        self.table_procs.setHorizontalHeaderLabels(["PID", "Process Name", "CPU %", "RAM %", "Status"])
-        self.table_procs.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
-        self.table_procs.setSelectionBehavior(QTableWidget.SelectionBehavior.SelectRows)
-        self.table_procs.setSelectionMode(QTableWidget.SelectionMode.SingleSelection)
-        self.table_procs.setStyleSheet("""
-            QTableWidget {
-                background: #0d0e14;
-                border: 1px solid #1c2028;
-                color: #cdd9ed;
-                gridline-color: #1c2028;
-                font-size: 11px;
-            }
-            QHeaderView::section {
-                background: #16181f;
-                color: #8c9dbd;
-                font-weight: bold;
-                border: 1px solid #1c2028;
-                padding: 4px;
-            }
-            QTableWidget::item:selected {
-                background: #1f2f4d;
-                color: #00e5ff;
-            }
-        """)
-        lay.addWidget(self.table_procs)
-        return w
-
-    # --- TAB 8: SYSTEM (Specs, Uptime & Battery) ---
+    # --- TAB 7: SYSTEM (Specs, Uptime & Battery) ---
     def _build_sys_tab(self) -> QWidget:
         w = QWidget()
         lay = QVBoxLayout(w)
@@ -668,6 +721,275 @@ class SentiDashboardWindow(QWidget):
         lay.addStretch()
         return w
 
+    # --- TAB 8: SETTINGS & PREFERENCES ---
+    def _build_settings_tab(self) -> QWidget:
+        w = QWidget()
+        w.setStyleSheet("background: #111317;")
+        scroll = QScrollArea(w)
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.Shape.NoFrame)
+        scroll.viewport().setStyleSheet("background: #111317; border: none;")
+        scroll.setStyleSheet("""
+            QScrollArea {
+                background: #111317;
+                border: none;
+            }
+            QScrollArea > QWidget > QWidget {
+                background: #111317;
+            }
+            QScrollBar:vertical {
+                background: #0d0e14;
+                width: 8px;
+                margin: 0px;
+                border-radius: 4px;
+            }
+            QScrollBar::handle:vertical {
+                background: #252934;
+                min-height: 24px;
+                border-radius: 4px;
+            }
+            QScrollBar::handle:vertical:hover {
+                background: #3b4252;
+            }
+            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
+                height: 0px;
+            }
+            QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {
+                background: none;
+            }
+        """)
+
+        container = QWidget()
+        container.setStyleSheet("background: #111317;")
+        lay = QVBoxLayout(container)
+        lay.setContentsMargins(10, 10, 10, 10)
+        lay.setSpacing(10)
+
+        # 1. Preset Themes
+        box_themes = QFrame()
+        box_themes.setStyleSheet("background: #0d0e14; border: 1px solid #1c2028; border-radius: 6px; padding: 10px;")
+        t_lay = QVBoxLayout(box_themes)
+        t_lay.setSpacing(8)
+        t_title = QLabel("THEMES")
+        t_title.setStyleSheet("color: #38bdf8; font-size: 10px; font-weight: 700; letter-spacing: 1px;")
+        t_lay.addWidget(t_title)
+
+        grid_themes = QGridLayout()
+        grid_themes.setSpacing(8)
+        theme_names = list(PRESET_THEMES.keys())
+        for idx, t_name in enumerate(theme_names):
+            r = idx // 3
+            c = idx % 3
+            btn = QPushButton(t_name)
+            btn.setCursor(Qt.CursorShape.PointingHandCursor)
+            btn.setStyleSheet("""
+                QPushButton {
+                    background: #16181f;
+                    color: #cdd9ed;
+                    border: 1px solid #20242c;
+                    border-radius: 4px;
+                    padding: 6px 8px;
+                    font-size: 11px;
+                    font-weight: 600;
+                }
+                QPushButton:hover {
+                    background: #1f232d;
+                    color: #38bdf8;
+                    border-color: #38bdf8;
+                }
+            """)
+            btn.clicked.connect(lambda checked=False, name=t_name: self._apply_theme(name))
+            grid_themes.addWidget(btn, r, c)
+        t_lay.addLayout(grid_themes)
+        lay.addWidget(box_themes)
+
+        # 2. Split Row: Custom Palette (Left) + Audio & System Controls (Right)
+        split_row = QHBoxLayout()
+        split_row.setSpacing(10)
+
+        # Left: Color Customization
+        box_colors = QFrame()
+        box_colors.setStyleSheet("background: #0d0e14; border: 1px solid #1c2028; border-radius: 6px; padding: 10px;")
+        c_lay = QVBoxLayout(box_colors)
+        c_lay.setSpacing(6)
+        c_title = QLabel("CUSTOM PALETTE")
+        c_title.setStyleSheet("color: #38bdf8; font-size: 10px; font-weight: 700; letter-spacing: 1px;")
+        c_lay.addWidget(c_title)
+
+        self.color_swatches: Dict[str, QPushButton] = {}
+        for key, label in [
+            ("body", "Body / Shell"),
+            ("details", "Details / Visor"),
+            ("eyes", "Eye Illumination"),
+            ("glow", "Aura Glow"),
+        ]:
+            row = QHBoxLayout()
+            lbl = QLabel(label)
+            lbl.setStyleSheet("color: #8c9dbd; font-size: 11px;")
+            row.addWidget(lbl)
+            row.addStretch()
+
+            btn = QPushButton()
+            btn.setFixedSize(50, 22)
+            btn.setCursor(Qt.CursorShape.PointingHandCursor)
+            btn.clicked.connect(lambda checked=False, k=key: self._pick_color(k))
+            self.color_swatches[key] = btn
+            row.addWidget(btn)
+            c_lay.addLayout(row)
+
+        btn_reset = QPushButton("Restore Defaults")
+        btn_reset.setCursor(Qt.CursorShape.PointingHandCursor)
+        btn_reset.setStyleSheet("""
+            QPushButton {
+                background: #16181f;
+                color: #8c9dbd;
+                border: 1px solid #20242c;
+                border-radius: 4px;
+                padding: 4px;
+                font-size: 10px;
+                margin-top: 4px;
+            }
+            QPushButton:hover {
+                background: #20242c;
+                color: #ffffff;
+            }
+        """)
+        btn_reset.clicked.connect(self._reset_colors)
+        c_lay.addWidget(btn_reset)
+        split_row.addWidget(box_colors, stretch=1)
+
+        # Right: Audio & Global Shortcuts
+        box_audio = QFrame()
+        box_audio.setStyleSheet("background: #0d0e14; border: 1px solid #1c2028; border-radius: 6px; padding: 10px;")
+        a_lay = QVBoxLayout(box_audio)
+        a_lay.setSpacing(6)
+        a_title = QLabel("AUDIO & CONTROLS")
+        a_title.setStyleSheet("color: #38bdf8; font-size: 10px; font-weight: 700; letter-spacing: 1px;")
+        a_lay.addWidget(a_title)
+
+        s_row = QHBoxLayout()
+        is_on = self.settings.is_sound_enabled()
+        self.lbl_sound_status = QLabel("Audio Tones: " + ("ENABLED" if is_on else "MUTED"))
+        self.lbl_sound_status.setStyleSheet("color: #cdd9ed; font-size: 11px; font-weight: 600;")
+        s_row.addWidget(self.lbl_sound_status)
+        s_row.addStretch()
+
+        self.btn_toggle_sound = QPushButton("Toggle Sound")
+        self.btn_toggle_sound.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_toggle_sound.setStyleSheet("""
+            QPushButton {
+                background: #16181f;
+                color: #38bdf8;
+                border: 1px solid #20242c;
+                border-radius: 4px;
+                padding: 4px 8px;
+                font-size: 10px;
+                font-weight: 600;
+            }
+            QPushButton:hover {
+                background: #1f232d;
+                border-color: #38bdf8;
+            }
+        """)
+        self.btn_toggle_sound.clicked.connect(self._toggle_sound)
+        s_row.addWidget(self.btn_toggle_sound)
+        a_lay.addLayout(s_row)
+
+        a_lay.addSpacing(6)
+        sc_title = QLabel("GLOBAL SHORTCUTS")
+        sc_title.setStyleSheet("color: #8c9dbd; font-size: 9px; font-weight: 700; letter-spacing: 0.5px;")
+        a_lay.addWidget(sc_title)
+
+        for sc_key, sc_desc in [
+            ("Ctrl+Shift+S", "Show/Hide SENTI"),
+            ("Ctrl+Shift+H", "Toggle Dashboard HUD"),
+            ("Ctrl+Shift+I", "Dock to Island"),
+            ("Ctrl+Shift+O", "Toggle Orb Mode"),
+        ]:
+            sr = QHBoxLayout()
+            klbl = QLabel(sc_key)
+            klbl.setStyleSheet("color: #38bdf8; font-size: 10px; font-weight: bold; font-family: Consolas;")
+            dlbl = QLabel(sc_desc)
+            dlbl.setStyleSheet("color: #8c9dbd; font-size: 10px;")
+            sr.addWidget(klbl)
+            sr.addWidget(dlbl)
+            sr.addStretch()
+            a_lay.addLayout(sr)
+
+        split_row.addWidget(box_audio, stretch=1)
+        lay.addLayout(split_row)
+
+        # 3. Telemetry Engine Specs
+        box_engine = QFrame()
+        box_engine.setStyleSheet("background: #0d0e14; border: 1px solid #1c2028; border-radius: 6px; padding: 8px 10px;")
+        e_lay = QHBoxLayout(box_engine)
+        lbl_e1 = QLabel("Sentinel Telemetry Engine")
+        lbl_e2 = QLabel("Polling Interval: 1.0s (Live Telemetry)")
+        lbl_e3 = QLabel("Network Target: 8.8.8.8 (ICMP Ping)")
+        for el in (lbl_e1, lbl_e2, lbl_e3):
+            el.setStyleSheet("color: #6b7079; font-size: 10px; font-weight: 600;")
+            e_lay.addWidget(el)
+        lay.addWidget(box_engine)
+
+        lay.addStretch()
+        self._refresh_color_swatches()
+
+        outer_lay = QVBoxLayout(w)
+        outer_lay.setContentsMargins(0, 0, 0, 0)
+        scroll.setWidget(container)
+        outer_lay.addWidget(scroll)
+        return w
+
+    def _refresh_color_swatches(self):
+        if not hasattr(self, "color_swatches"):
+            return
+        for key, btn in self.color_swatches.items():
+            c = self.settings.get_color(key)
+            text_color = "#000000" if key == "body" else "#ffffff"
+            btn.setText(c.name().upper())
+            btn.setStyleSheet(f"""
+                QPushButton {{
+                    background-color: {c.name()};
+                    color: {text_color};
+                    border: 1px solid #252934;
+                    border-radius: 4px;
+                    font-size: 9px;
+                    font-weight: bold;
+                }}
+            """)
+
+    def _apply_theme(self, theme_name: str):
+        if self.settings.apply_preset_theme(theme_name):
+            self._refresh_color_swatches()
+            if self.on_colors_changed:
+                self.on_colors_changed()
+
+    def _pick_color(self, name: str):
+        current_c = self.settings.get_color(name)
+        dialog = QColorDialog(current_c, self)
+        dialog.setOption(QColorDialog.ColorDialogOption.DontUseNativeDialog, True)
+        dialog.setWindowTitle(f"Choose {name.capitalize()} Color")
+        if dialog.exec():
+            selected = dialog.selectedColor()
+            if selected.isValid():
+                self.settings.set_color(name, selected)
+                self._refresh_color_swatches()
+                if self.on_colors_changed:
+                    self.on_colors_changed()
+
+    def _reset_colors(self):
+        self.settings.reset_colors()
+        self._refresh_color_swatches()
+        if self.on_colors_changed:
+            self.on_colors_changed()
+
+    def _toggle_sound(self):
+        new_val = not self.settings.is_sound_enabled()
+        self.settings.set_sound_enabled(new_val)
+        self.lbl_sound_status.setText("Audio Tones: " + ("ENABLED" if new_val else "MUTED"))
+        if self.on_sound_toggled:
+            self.on_sound_toggled(new_val)
+
     # --- Telemetry Refresh Dispatcher ---
     def update_telemetry(self, data: Dict[str, Any]):
         """Live dashboard refresh called on each background polling tick."""
@@ -679,38 +1001,111 @@ class SentiDashboardWindow(QWidget):
         cpu_val = data.get("cpu", 0.0)
         self.lbl_cpu_main.setText(f"CPU Load: {cpu_val:.1f}%")
         self.spark_cpu.add_sample(cpu_val)
+        
+        proc_str = data.get("processor", "CPU")
+        self.lbl_cpu_model.setText(f"Processor: {proc_str}")
+        
         freq = data.get("cpu_freq_mhz")
         self.lbl_cpu_freq.setText(f"Frequency: {freq:.0f} MHz" if freq else "Frequency: Optimal")
 
+        # Dynamic Core Tiles: Handles any CPU core count (2, 4, 6, 8, 12, 16, 24, 32, 64+ cores)
         cores = data.get("cpu_cores") or []
-        for i, val in enumerate(cores[:16]):
-            if i < len(self.core_labels):
-                self.core_labels[i].setText(f"Core {i}: {val:.0f}%")
-                self.core_bars[i].set_value(val)
+        if not hasattr(self, "_cpu_tiles") or len(self._cpu_tiles) != len(cores):
+            # Clear existing items
+            while self.cores_grid.count():
+                item = self.cores_grid.takeAt(0)
+                if item.widget():
+                    item.widget().deleteLater()
+            self._cpu_tiles = []
+            self.core_labels = []
+            self.core_bars = []
+
+            cols = 4 if len(cores) >= 4 else max(1, len(cores))
+            for i, val in enumerate(cores):
+                tile = QFrame()
+                tile.setFixedHeight(54)
+                tile.setStyleSheet("""
+                    QFrame {
+                        background: #0d0e14;
+                        border: 1px solid #1c2028;
+                        border-radius: 6px;
+                    }
+                    QLabel {
+                        border: none;
+                        background: transparent;
+                        padding: 0px;
+                    }
+                """)
+                t_lay = QVBoxLayout(tile)
+                t_lay.setContentsMargins(10, 8, 10, 8)
+                t_lay.setSpacing(6)
+
+                row = QHBoxLayout()
+                # 1-indexed for end users: Core 1, Core 2, Core 3, etc.
+                lbl_name = QLabel(f"Core {i + 1}")
+                lbl_name.setStyleSheet("color: #8c9dbd; font-size: 11px; font-weight: 700; letter-spacing: 0.5px;")
+                lbl_pct = QLabel(f"{val:.0f}%")
+                lbl_pct.setStyleSheet("color: #f8fafc; font-size: 13px; font-weight: 700;")
+                row.addWidget(lbl_name)
+                row.addStretch()
+                row.addWidget(lbl_pct)
+                t_lay.addLayout(row)
+
+                bar = SmoothBar(self)
+                bar.setFixedHeight(5)
+                bar.set_value(val)
+                t_lay.addWidget(bar)
+
+                r = i // cols
+                c = i % cols
+                self.cores_grid.addWidget(tile, r, c)
+                self._cpu_tiles.append((lbl_pct, bar))
+                self.core_labels.append(lbl_pct)
+                self.core_bars.append(bar)
+
+            self.cores_grid.setAlignment(Qt.AlignmentFlag.AlignTop)
+
+            num_c = len(cores)
+            phys = data.get("physical_cores", 0)
+            phys_str = f" · {phys} PHYSICAL" if phys > 0 else ""
+            self.lbl_cores_header.setText(f"LOGICAL CORES  ·  {num_c} THREADS ACTIVE{phys_str}")
+        else:
+            for (lbl_pct, bar), val in zip(self._cpu_tiles, cores):
+                lbl_pct.setText(f"{val:.0f}%")
+                bar.set_value(val)
+
+        # Overview Stats Badges
+        num_c = len(cores)
+        phys = data.get("physical_cores", 0)
+        self.lbl_cpu_threads.setText(f"{num_c} Logical")
+        self.lbl_cpu_physical.setText(f"{phys} Physical" if phys > 0 else f"{num_c} Cores")
+        self.lbl_cpu_cur_freq.setText(f"{freq:.0f} MHz" if freq else "Optimal")
 
         stats = data.get("cpu_stats") or {}
-        self.lbl_proc_count.setText(f"Processes: {stats.get('process_count', 0)}")
-        self.lbl_thread_count.setText(f"Threads: {stats.get('thread_count', 0)}")
-        self.lbl_ctx_switches.setText(f"Ctx Switches: {stats.get('ctx_switches', 0):,}")
-        self.lbl_interrupts.setText(f"Interrupts: {stats.get('interrupts', 0):,}")
+        threads_count = stats.get('thread_count', 0)
+        self.lbl_cpu_active_threads.setText(f"{threads_count:,} Running")
+        self.lbl_ctx_switches.setText(f"Context Switches: {stats.get('ctx_switches', 0):,}")
+        self.lbl_interrupts.setText(f"Hardware Interrupts: {stats.get('interrupts', 0):,}")
 
         # 2. RAM
         ram_val = data.get("ram", 0.0)
-        self.lbl_ram_main.setText(f"Memory Usage: {ram_val:.1f}%")
+        self.lbl_ram_main.setText(f"Memory: {ram_val:.1f}%")
         self.spark_ram.add_sample(ram_val)
         ram_d = data.get("ram_details") or {}
         used = ram_d.get("used_gb", 0.0)
         total = ram_d.get("total_gb", 0.0)
         self.lbl_ram_gb.setText(f"Used: {used:.2f} GB / Total: {total:.2f} GB")
-        self.lbl_ram_inuse.setText(f"In-Use: {used:.2f} GB")
-        self.lbl_ram_avail.setText(f"Available: {ram_d.get('available_gb', 0.0):.2f} GB")
-        self.lbl_ram_cached.setText(f"Cached / Standby: {ram_d.get('cached_gb', 0.0):.2f} GB")
-        self.lbl_ram_free.setText(f"Free: {ram_d.get('free_gb', 0.0):.2f} GB")
+        self.lbl_ram_inuse.setText(f"{used:.2f} GB")
+        self.lbl_ram_avail.setText(f"{ram_d.get('available_gb', 0.0):.2f} GB")
+        cached = ram_d.get('cached_gb', 0.0)
+        self.lbl_ram_cached.setText(f"{(cached * 1024):.0f} MB" if cached < 1.0 else f"{cached:.2f} GB")
+        free = ram_d.get('free_gb', 0.0)
+        self.lbl_ram_free.setText(f"{(free * 1024):.0f} MB" if free < 1.0 else f"{free:.2f} GB")
 
         swap_used = ram_d.get("swap_used_gb", 0.0)
         swap_total = ram_d.get("swap_total_gb", 0.0)
         swap_pct = ram_d.get("swap_percent", 0.0)
-        self.lbl_swap.setText(f"Swap / Pagefile Usage: {swap_used:.2f} GB / {swap_total:.2f} GB ({swap_pct:.1f}%)")
+        self.lbl_swap.setText(f"Paging File: {swap_used:.2f} GB / {swap_total:.2f} GB ({swap_pct:.1f}%)")
         self.bar_swap.set_value(swap_pct)
 
         # 3. DISK
@@ -722,18 +1117,20 @@ class SentiDashboardWindow(QWidget):
         self.lbl_disk_read.setText(f"Read: {r_mb:.2f} MB/s")
         self.lbl_disk_write.setText(f"Write: {w_mb:.2f} MB/s")
 
-        # Rebuild partition list if count changed
+        # Rebuild or update partition cards smoothly
         parts = disk_d.get("partitions") or []
-        if self.disk_part_layout.count() != len(parts):
+        if not hasattr(self, "_disk_card_widgets") or len(self._disk_card_widgets) != len(parts):
             while self.disk_part_layout.count():
                 item = self.disk_part_layout.takeAt(0)
                 if item.widget():
                     item.widget().deleteLater()
+            self._disk_card_widgets = []
             for p in parts:
                 pf = QFrame()
-                pf.setStyleSheet("background: #0d0e14; border: 1px solid #1c2028; border-radius: 6px; padding: 8px;")
+                pf.setStyleSheet("background: #0d0e14; border: 1px solid #1c2028; border-radius: 6px; padding: 10px;")
                 pflay = QVBoxLayout(pf)
-                header = QLabel(f"Drive {p['mountpoint']} ({p['fstype']}) — {p['used_gb']:.1f} GB used of {p['total_gb']:.1f} GB ({p['percent']:.0f}%)")
+                pflay.setSpacing(6)
+                header = QLabel(f"Volume {p['mountpoint']} [{p['fstype']}]  ·  {p['used_gb']:.1f} GB of {p['total_gb']:.1f} GB ({p['percent']:.0f}%)")
                 header.setStyleSheet("color: #f8fafc; font-size: 11px; font-weight: 600;")
                 pbar = SmoothBar(self)
                 pbar.setFixedHeight(6)
@@ -741,6 +1138,12 @@ class SentiDashboardWindow(QWidget):
                 pflay.addWidget(header)
                 pflay.addWidget(pbar)
                 self.disk_part_layout.addWidget(pf)
+                self._disk_card_widgets.append((header, pbar))
+            self.disk_part_layout.addStretch()
+        else:
+            for (header, pbar), p in zip(self._disk_card_widgets, parts):
+                header.setText(f"Volume {p['mountpoint']} [{p['fstype']}]  ·  {p['used_gb']:.1f} GB of {p['total_gb']:.1f} GB ({p['percent']:.0f}%)")
+                pbar.set_value(p["percent"])
 
         # 4. TEMP
         temp_val = data.get("temperature_c")
@@ -748,32 +1151,35 @@ class SentiDashboardWindow(QWidget):
             self.lbl_temp_main.setText(f"Package Temp: {temp_val:.1f}°C")
             self.spark_temp.add_sample(temp_val)
             if temp_val >= 85.0:
-                self.lbl_temp_status.setText("CRITICAL THERMAL WARNING")
-                self.lbl_temp_status.setStyleSheet("color: #ff3b4a; background: #260a0f; border: 1px solid #541722; padding: 4px 8px; border-radius: 4px;")
+                self.lbl_temp_status.setText("CRITICAL THERMAL THROTTLING")
+                self.lbl_temp_status.setStyleSheet("color: #ff3b4a; font-size: 12px; font-weight: 700;")
+            elif temp_val >= 75.0:
+                self.lbl_temp_status.setText("Elevated Load Temp")
+                self.lbl_temp_status.setStyleSheet("color: #f5a524; font-size: 12px; font-weight: 600;")
             else:
-                self.lbl_temp_status.setText("NOMINAL COOLING")
-                self.lbl_temp_status.setStyleSheet("color: #22c55e; background: #0d1a14; border: 1px solid #1c3d28; padding: 4px 8px; border-radius: 4px;")
-            self.lbl_acpi_temp.setText("ACPI Thermal Zone: Active Sensor Polling")
-            self.lbl_throttle.setText("Thermal Throttling: Safe Operating Margin")
+                self.lbl_temp_status.setText("Optimal Operating Temp")
+                self.lbl_temp_status.setStyleSheet("color: #22c55e; font-size: 12px; font-weight: 600;")
+            self.lbl_cpu_temp.setText(f"CPU Thermal Sensor: {temp_val:.1f}°C (Active ACPI Reading)")
         else:
-            self.lbl_temp_main.setText("Package Temp: N/A")
-            self.lbl_temp_status.setText("SENSOR NOT AVAILABLE ON THIS DEVICE")
-            self.lbl_temp_status.setStyleSheet("color: #8c9dbd; background: #16181f; border: 1px solid #252934; padding: 4px 8px; border-radius: 4px;")
-            self.lbl_acpi_temp.setText("ACPI Sensor: Not exposed by device firmware/BIOS (OEM restricted)")
-            self.lbl_throttle.setText("Thermal Status: Standard Windows hardware thermal safety active")
+            self.lbl_temp_main.setText("Package Temp: Not Available")
+            self.lbl_temp_status.setText("Thermal Sensor: Not available for your device")
+            self.lbl_temp_status.setStyleSheet("color: #8c9dbd; font-size: 12px; font-weight: 600;")
+            self.lbl_cpu_temp.setText("CPU Thermal Sensor: Not available for your device hardware")
 
         # 5. GPU
+        gpu_val = data.get("gpu_load", 0.0)
+        self.lbl_gpu_main.setText(f"GPU Load: {gpu_val:.1f}%")
+        self.spark_gpu.add_sample(gpu_val)
         gpu_d = data.get("gpu_details") or {}
-        gpu_load = float(data.get("gpu_load", gpu_d.get("load_percent", 0.0)))
-        self.lbl_gpu_load.setText(f"GPU Load: {gpu_load:.1f}%")
-        self.spark_gpu.add_sample(gpu_load)
-        self.lbl_gpu_name.setText(f"Graphics Adapter: {gpu_d.get('name', 'Display Adapter')}")
-        vram_total = gpu_d.get("vram_total_gb")
-        vram_used = gpu_d.get("vram_used_gb", 0.0)
-        if vram_total:
-            self.lbl_gpu_vram.setText(f"Dedicated VRAM: {vram_used:.1f} GB / {vram_total:.1f} GB")
+        self.lbl_gpu_name.setText(f"Adapter: {gpu_d.get('name', 'Generic Video Controller')}")
+        v_total = gpu_d.get("vram_total_gb")
+        v_used = gpu_d.get("vram_used_gb", 0.0)
+        if v_total:
+            self.lbl_vram.setText(f"Dedicated Video Memory: {v_used:.2f} GB / {v_total:.2f} GB")
+            self.bar_vram.set_value((v_used / v_total) * 100.0)
         else:
-            self.lbl_gpu_vram.setText("Dedicated VRAM: System Shared")
+            self.lbl_vram.setText("Dedicated Video Memory: Shared System Memory")
+            self.bar_vram.set_value(gpu_val)
         self.lbl_gpu_driver.setText(f"Driver Version: {gpu_d.get('driver', 'Standard')}")
 
         # 6. NETWORK (3 Live Telemetry Graphs)
@@ -805,11 +1211,7 @@ class SentiDashboardWindow(QWidget):
             self.lbl_ping.setText("Offline / Checking...")
             self.lbl_ping_status.setText("Target: 8.8.8.8 (Waiting for ping response)")
 
-        # 7. PROCESSES (refresh when visible)
-        if self.isVisible() and self.tabs.currentIndex() == 6:
-            self._refresh_process_table()
-
-        # 8. SYSTEM
+        # 7. SYSTEM
         self.lbl_sys_os.setText(f"Operating System: {data.get('os', 'Windows')}")
         self.lbl_sys_host.setText(f"Hostname: {data.get('hostname', 'Unknown')}")
         self.lbl_sys_proc.setText(f"Processor: {data.get('processor', 'CPU')}")
@@ -830,93 +1232,51 @@ class SentiDashboardWindow(QWidget):
             self.lbl_battery.setText("Battery: Desktop Workstation (AC Line Power)")
             self.bar_battery.set_value(100.0)
 
-    def _refresh_process_table(self):
-        query = self.proc_search.text().strip().lower()
-        procs = get_top_processes(20)
-        if query:
-            procs = [p for p in procs if query in p["name"].lower() or query in str(p["pid"])]
-
-        self.table_procs.setRowCount(len(procs))
-        for row, p in enumerate(procs):
-            self.table_procs.setItem(row, 0, QTableWidgetItem(str(p["pid"])))
-            self.table_procs.setItem(row, 1, QTableWidgetItem(p["name"]))
-            self.table_procs.setItem(row, 2, QTableWidgetItem(f"{p['cpu_percent']:.1f}%"))
-            self.table_procs.setItem(row, 3, QTableWidgetItem(f"{p['memory_percent']:.1f}%"))
-            self.table_procs.setItem(row, 4, QTableWidgetItem(p.get("status", "running")))
-
-    def _filter_procs(self):
-        self._refresh_process_table()
-
-    def _get_selected_pid(self) -> Optional[int]:
-        rows = self.table_procs.selectionModel().selectedRows()
-        if not rows:
-            return None
-        try:
-            return int(self.table_procs.item(rows[0].row(), 0).text())
-        except (ValueError, AttributeError):
-            return None
-
-    def _kill_selected_proc(self):
-        pid = self._get_selected_pid()
-        if pid:
-            reply = QMessageBox.question(
-                self,
-                "Terminate Process",
-                f"Are you sure you want to terminate process {pid}?",
-                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-            )
-            if reply == QMessageBox.StandardButton.Yes:
-                terminate_process(pid)
-                self._refresh_process_table()
-
-    def _toggle_suspend_proc(self):
-        pid = self._get_selected_pid()
-        if pid:
-            # Try suspend first
-            if not suspend_process(pid):
-                resume_process(pid)
-            self._refresh_process_table()
-
     # --- Window Open / Dedicated Panel Navigation ---
     def open_tab(self, tab_name: str):
         """Open the dedicated window showing ONLY the requested tab. No other tabs appear."""
         name_map = {
-            "CPU": (0, "CPU MONITOR", "#22c55e"),
-            "RAM": (1, "MEMORY MONITOR", "#f5a524"),
-            "MEMORY": (1, "MEMORY MONITOR", "#f5a524"),
-            "STORAGE": (2, "STORAGE & I/O MONITOR", "#6366f1"),
-            "DISK": (2, "STORAGE & I/O MONITOR", "#6366f1"),
-            "THERMALS": (3, "THERMAL SENSORS", "#f4505e"),
-            "TEMP": (3, "THERMAL SENSORS", "#f4505e"),
-            "GPU": (4, "GPU MONITOR", "#00e5ff"),
-            "NETWORK": (5, "NETWORK & PORTS", "#a855f7"),
-            "NET": (5, "NETWORK & PORTS", "#a855f7"),
-            "PROCESSES": (6, "PROCESS MANAGER", "#f97316"),
-            "PROCS": (6, "PROCESS MANAGER", "#f97316"),
-            "SYSTEM": (7, "SYSTEM & BATTERY", "#10b981"),
-            "SYS": (7, "SYSTEM & BATTERY", "#10b981"),
+            "CPU": (0, "CPU", "#22c55e"),
+            "RAM": (1, "MEMORY", "#f5a524"),
+            "MEMORY": (1, "MEMORY", "#f5a524"),
+            "GPU": (2, "GPU", "#00e5ff"),
+            "NETWORK": (3, "NETWORK", "#a855f7"),
+            "NET": (3, "NETWORK", "#a855f7"),
+            "STORAGE": (4, "STORAGE", "#6366f1"),
+            "DISK": (4, "STORAGE", "#6366f1"),
+            "THERMALS": (5, "THERMALS", "#f4505e"),
+            "TEMP": (5, "THERMALS", "#f4505e"),
+            "SYSTEM": (6, "SYSTEM", "#10b981"),
+            "SYS": (6, "SYSTEM", "#10b981"),
+            "BAT": (6, "SYSTEM", "#10b981"),
+            "BATTERY": (6, "SYSTEM", "#10b981"),
+            "SETTINGS": (7, "SETTINGS", "#38bdf8"),
+            "SET": (7, "SETTINGS", "#38bdf8"),
+            "PREF": (7, "SETTINGS", "#38bdf8"),
+            "CONFIG": (7, "SETTINGS", "#38bdf8"),
         }
         normalized = tab_name.upper()
-        info = name_map.get(normalized, (0, "CPU MONITOR", "#22c55e"))
+        info = name_map.get(normalized, (0, "CPU", "#22c55e"))
         idx, title_text, accent_color = info
 
-        # Toggle: if clicking the same pill while open, close smoothly
-        if self.isVisible() and getattr(self, "_active_tab_name", None) == normalized and self._opacity_effect.opacity() > 0.5:
-            self.close_panel()
-            return
-
         self._active_tab_name = normalized
-        self.tabs.setCurrentIndex(idx)
-        self.lbl_title.setText(f"SYS-SENTINEL  //  {title_text}")
-        self.lbl_title.setStyleSheet(f"color: {accent_color}; font-size: 11px; font-weight: 700; letter-spacing: 1.5px;")
 
-        self.show()
-        self.raise_()
-        self.activateWindow()
-        self._fade_anim.stop()
-        self._fade_anim.setStartValue(0.0)
-        self._fade_anim.setEndValue(1.0)
-        self._fade_anim.start()
+        # Immediate, deterministic tab switch - synchronous, instant, rock-solid
+        self.tabs.setCurrentIndex(idx)
+        self.lbl_title.setText(f"SENTINEL  ·  {title_text}")
+        self.lbl_title.setStyleSheet(f"color: {accent_color}; font-size: 11px; font-weight: 700; letter-spacing: 2px;")
+
+        if not self.isVisible() or self._opacity_effect.opacity() < 0.2:
+            self.show()
+            self.raise_()
+            self.activateWindow()
+            self._fade_anim.stop()
+            self._fade_anim.setStartValue(0.0)
+            self._fade_anim.setEndValue(1.0)
+            self._fade_anim.start()
+        else:
+            self.raise_()
+            self.activateWindow()
 
     def close_panel(self):
         self._fade_anim.stop()

@@ -1,4 +1,4 @@
-"""Settings management for SYS-SENTINEL using QSettings."""
+"""Settings management for Sentinel using QSettings."""
 
 from typing import Dict, Any, Optional
 from PySide6.QtCore import QSettings, QPoint
@@ -47,10 +47,10 @@ PRESET_THEMES: Dict[str, Dict[str, str]] = {
 
 
 class SentiSettings:
-    """Encapsulates QSettings for SYS-SENTINEL."""
+    """Encapsulates QSettings for Sentinel."""
 
     def __init__(self):
-        self._settings = QSettings("SYS-SENTINEL", "SENTI")
+        self._settings = QSettings("Sentinel", "SENTI")
 
     def get_color(self, name: str) -> QColor:
         hex_val = str(self._settings.value(f"colors/{name}", DEFAULT_COLORS.get(name, "#ffffff")))

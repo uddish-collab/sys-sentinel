@@ -18,7 +18,6 @@ from src.system_monitor import (
     get_detailed_disk_info,
     get_detailed_net_info,
     get_detailed_gpu_info,
-    get_top_processes,
     get_active_connections,
     get_system_info,
 )
@@ -32,7 +31,8 @@ class TestDashboardAndSubsystems(unittest.TestCase):
         # Verify that tab bar is hidden so only the dedicated active tab appears
         self.assertFalse(dash.tabs.tabBar().isVisible())
         
-        # Test direct tab switching
+        # Test direct tab switching (Aligned 1:1 with Island layout)
+        # Row 1: CPU, RAM, GPU, NETWORK
         dash.open_tab("CPU")
         self.assertEqual(dash.tabs.currentIndex(), 0)
         self.assertIn("CPU", dash.lbl_title.text())
@@ -40,30 +40,31 @@ class TestDashboardAndSubsystems(unittest.TestCase):
         dash.open_tab("RAM")
         self.assertEqual(dash.tabs.currentIndex(), 1)
         self.assertIn("MEMORY", dash.lbl_title.text())
-        
-        dash.open_tab("STORAGE")
-        self.assertEqual(dash.tabs.currentIndex(), 2)
-        self.assertIn("STORAGE", dash.lbl_title.text())
-        
-        dash.open_tab("THERMALS")
-        self.assertEqual(dash.tabs.currentIndex(), 3)
-        self.assertIn("THERMAL", dash.lbl_title.text())
 
         dash.open_tab("GPU")
-        self.assertEqual(dash.tabs.currentIndex(), 4)
+        self.assertEqual(dash.tabs.currentIndex(), 2)
         self.assertIn("GPU", dash.lbl_title.text())
 
         dash.open_tab("NETWORK")
-        self.assertEqual(dash.tabs.currentIndex(), 5)
+        self.assertEqual(dash.tabs.currentIndex(), 3)
         self.assertIn("NETWORK", dash.lbl_title.text())
 
-        dash.open_tab("PROCESSES")
-        self.assertEqual(dash.tabs.currentIndex(), 6)
-        self.assertIn("PROCESS", dash.lbl_title.text())
+        # Row 2: STORAGE, THERMALS, SYSTEM, SETTINGS
+        dash.open_tab("STORAGE")
+        self.assertEqual(dash.tabs.currentIndex(), 4)
+        self.assertIn("STORAGE", dash.lbl_title.text())
+        
+        dash.open_tab("THERMALS")
+        self.assertEqual(dash.tabs.currentIndex(), 5)
+        self.assertIn("THERMAL", dash.lbl_title.text())
 
         dash.open_tab("SYSTEM")
-        self.assertEqual(dash.tabs.currentIndex(), 7)
+        self.assertEqual(dash.tabs.currentIndex(), 6)
         self.assertIn("SYSTEM", dash.lbl_title.text())
+
+        dash.open_tab("SETTINGS")
+        self.assertEqual(dash.tabs.currentIndex(), 7)
+        self.assertIn("SETTINGS", dash.lbl_title.text())
 
         dash.close()
 
@@ -111,10 +112,6 @@ class TestDashboardAndSubsystems(unittest.TestCase):
         gpu = get_detailed_gpu_info()
         self.assertIn("name", gpu)
 
-        procs = get_top_processes(limit=5)
-        self.assertIsInstance(procs, list)
-        self.assertLessEqual(len(procs), 5)
-
         conns = get_active_connections(limit=5)
         self.assertIsInstance(conns, list)
 
@@ -132,15 +129,15 @@ class TestDashboardAndSubsystems(unittest.TestCase):
         # Pill 4: NET (col4_x: 746..874)
         self.assertEqual(island._hit_test(QPoint(810, 44)), "pill_net")
 
-        # Row 2 (y: 68..104)
+        # Row 2 (y: 68..104, 4 pills in 4x2 matrix)
         # Pill 5: DISK (col1_x: 350..478)
         self.assertEqual(island._hit_test(QPoint(414, 86)), "pill_disk")
         # Pill 6: TEMP (col2_x: 482..610)
         self.assertEqual(island._hit_test(QPoint(546, 86)), "pill_temp")
-        # Pill 7: PROC (col3_x: 614..742)
-        self.assertEqual(island._hit_test(QPoint(678, 86)), "pill_proc")
-        # Pill 8: SYS (col4_x: 746..874)
-        self.assertEqual(island._hit_test(QPoint(810, 86)), "pill_sys")
+        # Pill 7: SYS (col3_x: 614..742)
+        self.assertEqual(island._hit_test(QPoint(678, 86)), "pill_sys")
+        # Pill 8: SET (col4_x: 746..874)
+        self.assertEqual(island._hit_test(QPoint(810, 86)), "pill_set")
         island.close()
 
 

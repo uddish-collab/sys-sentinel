@@ -1,4 +1,4 @@
-"""Pure Python state, history, thresholds, and formatting for SYS-SENTINEL.
+"""Pure Python state, history, thresholds, and formatting for Sentinel.
 
 No Qt dependencies in this module so it can be thoroughly unit-tested.
 """

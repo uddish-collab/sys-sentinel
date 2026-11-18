@@ -1,4 +1,4 @@
-"""Dedicated Settings window for SYS-SENTINEL mascot, themes, and configuration."""
+"""Dedicated Settings window for Sentinel mascot, themes, and configuration."""
 
 from typing import Optional, Dict
 from PySide6.QtCore import (
@@ -36,7 +36,7 @@ from senti_widgets import (
 
 
 class SentiControlWindow(QWidget):
-    """Dedicated settings and customization window for SYS-SENTINEL."""
+    """Dedicated settings and customization window for Sentinel."""
 
     colors_changed = Signal()
     sound_toggled = Signal(bool)
@@ -51,7 +51,7 @@ class SentiControlWindow(QWidget):
         super().__init__(parent)
         self.settings = settings
 
-        self.setWindowTitle("SYS-SENTINEL — Settings")
+        self.setWindowTitle("Sentinel — Settings")
         self.setObjectName("controlRoot")
         self.setStyleSheet(DARK_THEME_QSS)
         self.resize(600, 470)

@@ -1,4 +1,4 @@
-"""SYS-SENTINEL Desktop Companion and System Tray Controller.
+"""Sentinel Desktop Companion and System Tray Controller.
 
 Polished Windows 10/11 desktop companion featuring the animated SENTI mascot,
 minimalist black glass top island, startup greeting wave, multi-click gestures, and global hotkeys.
@@ -43,7 +43,11 @@ from PySide6.QtWidgets import (
     QGraphicsOpacityEffect,
 )
 
-from system_monitor import get_system_info
+from system_monitor import (
+    get_system_info,
+    get_temperature_monitor,
+    get_gpu_monitor,
+)
 from senti_state import (
     StateTracker,
     MetricHistory,
@@ -460,6 +464,10 @@ class SentiApp:
         # Ensure audio tones exist
         ensure_sound_files()
 
+        # Warm up background telemetry daemons off-thread
+        get_gpu_monitor()
+        get_temperature_monitor()
+
         # 1. Create Minimalist Solid Dark Top Island
         self.island = TopIslandWindow(
             on_drag_moved=self._on_island_drag_moved,
@@ -486,8 +494,12 @@ class SentiApp:
         # 4. Create Compact HUD
         self.hud = SentiHud(on_open_control=None)
 
-        # 5. Create Dedicated Subsystem Telemetry Dashboard
-        self.dashboard = SentiDashboardWindow()
+        # 5. Create Dedicated Subsystem Telemetry Dashboard (includes Settings panel)
+        self.dashboard = SentiDashboardWindow(
+            settings=self.settings,
+            on_colors_changed=self.on_palette_changed,
+            on_sound_toggled=self.on_sound_toggled,
+        )
 
         # 6. Create Control / Settings Window
         self.control_win = SentiControlWindow(self.settings, self.history_map)
@@ -659,7 +671,7 @@ class SentiApp:
         self.play("show")
 
     def open_control_window(self):
-        self.control_win.show_window()
+        self.open_dashboard_tab("SETTINGS")
 
     def open_dashboard_tab(self, tab_name: str = "CPU"):
         """Open the dedicated subsystem telemetry tab (CPU, RAM, STORAGE, THERMALS, etc.)."""
@@ -777,20 +789,20 @@ class SentiApp:
 
 def main():
     app = QApplication(sys.argv)
-    app.setOrganizationName("SYS-SENTINEL")
+    app.setOrganizationName("Sentinel")
     app.setApplicationName("SENTI")
 
     # Closing windows never quits the app
     app.setQuitOnLastWindowClosed(False)
 
     # Single-instance enforcement via QLockFile
-    lock_path = os.path.join(tempfile.gettempdir(), "sys_sentinel_senti.lock")
+    lock_path = os.path.join(tempfile.gettempdir(), "sentinel_senti.lock")
     lock_file = QLockFile(lock_path)
     lock_file.setStaleLockTime(30000)
 
     if not lock_file.tryLock(100):
         msg = QMessageBox()
-        msg.setWindowTitle("SYS-SENTINEL")
+        msg.setWindowTitle("Sentinel")
         msg.setText("SENTI is already running in your system tray.")
         msg.setIcon(QMessageBox.Icon.Information)
         msg.setStandardButtons(QMessageBox.StandardButton.Ok)

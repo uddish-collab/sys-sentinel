@@ -1,10 +1,10 @@
-"""Minimalist luxury desktop island for SYS-SENTINEL.
+"""Minimalist luxury desktop island for Sentinel.
 
 Designed to match the high-end Mochi aesthetic:
 - Deep black and charcoal layered surfaces
 - Dual-card layout with generous, refined proportions
 - Card 1 (Left): Hosts SENTI in his default cute form, live status, and action links
-- Card 2 (Right): 2x2 grid of metric pills with understated colored two-eyed badges (CPU, RAM, DISK, TEMP)
+- Card 2 (Right): 4x2 grid of 8 metric pills with understated colored two-eyed badges (CPU, RAM, GPU, NET, DISK, TEMP, BAT/SYS, SET)
 - Subtle top navigation capsule with Home, Greeting Chat, and HUD +
 - Zero clutter, zero lag, delicate borders, and soft shadows
 """
@@ -40,7 +40,7 @@ DRAG_THRESHOLD = 5
 # Configurable greetings list
 DEFAULT_GREETINGS = [
     "Hello, Operator!",
-    "SYS-SENTINEL online.",
+    "Sentinel online.",
     "All systems nominal.",
     "Ready to monitor.",
     "Hey there!",
@@ -199,7 +199,6 @@ class TopIslandWindow(QWidget):
             "gpu_load": 0.0,
             "net_recv_kb_s": 0.0,
             "ping_ms": None,
-            "process_count": 0,
             "battery": None,
             "uptime_seconds": 0,
         }
@@ -213,9 +212,9 @@ class TopIslandWindow(QWidget):
         self._hover_target: Optional[str] = None
         self.setMouseTracking(True)
 
-        # Pill entrance animations (scale, opacity) for all 8 pills
-        self._pill_scales = [0.0] * 8
-        self._pill_alphas = [0.0] * 8
+        # Pill entrance animations (scale, opacity) for all 8 pills (default visible)
+        self._pill_scales = [1.0] * 8
+        self._pill_alphas = [1.0] * 8
         self._pill_timers: List[QTimer] = []
 
         # Opacity animation for hide/show
@@ -295,7 +294,6 @@ class TopIslandWindow(QWidget):
         self._telemetry["gpu_load"] = data.get("gpu_load", 0.0)
         self._telemetry["net_recv_kb_s"] = data.get("net_recv_kb_s", 0.0)
         self._telemetry["ping_ms"] = data.get("ping_ms")
-        self._telemetry["process_count"] = data.get("process_count", 0)
         self._telemetry["battery"] = data.get("battery")
         self._telemetry["uptime_seconds"] = data.get("uptime_seconds", 0)
         self.update()
@@ -305,31 +303,29 @@ class TopIslandWindow(QWidget):
     def _hit_test(self, pos: QPoint) -> Optional[str]:
         px, py = pos.x(), pos.y()
 
-        # Row 1 (y: 26..62)
-        if 26 <= py <= 62:
-            if 350 <= px <= 478:
-                return "pill_cpu"
-            elif 482 <= px <= 610:
-                return "pill_ram"
-            elif 614 <= px <= 742:
-                return "pill_gpu"
-            elif 746 <= px <= 874:
-                return "pill_net"
-
-        # Row 2 (y: 68..104)
-        if 68 <= py <= 104:
-            if 350 <= px <= 478:
-                return "pill_disk"
-            elif 482 <= px <= 610:
-                return "pill_temp"
-            elif 614 <= px <= 742:
-                return "pill_proc"
-            elif 746 <= px <= 874:
-                return "pill_sys"
-
-        # Card 2 pills container fallback
-        if 10 <= py <= 126 and 342 <= px <= 882:
-            return "hud"
+        # Right Card: 8 subsystem pills in 4x2 matrix (px: 342..882, py: 10..126)
+        if 342 <= px <= 882 and 10 <= py <= 126:
+            # Row determination
+            if py < 65:
+                # Row 1: CPU, RAM, GPU, NET
+                if px < 480:
+                    return "pill_cpu"
+                elif px < 612:
+                    return "pill_ram"
+                elif px < 744:
+                    return "pill_gpu"
+                else:
+                    return "pill_net"
+            else:
+                # Row 2: DISK, TEMP, SYS, SET
+                if px < 480:
+                    return "pill_disk"
+                elif px < 612:
+                    return "pill_temp"
+                elif px < 744:
+                    return "pill_sys"
+                else:
+                    return "pill_set"
 
         return None
 
@@ -358,17 +354,12 @@ class TopIslandWindow(QWidget):
             elif hit == "pill_temp":
                 if self.on_open_tab:
                     self.on_open_tab("THERMALS")
-            elif hit == "pill_proc":
-                if self.on_open_tab:
-                    self.on_open_tab("PROCESSES")
             elif hit == "pill_sys":
                 if self.on_open_tab:
                     self.on_open_tab("SYSTEM")
-            elif hit in ("home", "plus", "hud"):
+            elif hit == "pill_set":
                 if self.on_open_tab:
-                    self.on_open_tab("CPU")
-                elif self.on_toggle_hud:
-                    self.on_toggle_hud()
+                    self.on_open_tab("SETTINGS")
             elif hit == "chat":
                 if self.on_trigger_greeting:
                     self.on_trigger_greeting()
@@ -490,7 +481,6 @@ class TopIslandWindow(QWidget):
         ping = self._telemetry.get("ping_ms")
         disk_val = self._telemetry.get("disk", 0.0)
         temp_val = self._telemetry.get("temperature_c")
-        proc_val = self._telemetry.get("process_count", 0)
         bat_val = self._telemetry.get("battery")
         sys_drive = self._telemetry.get("system_drive", "C:")
         if sys_drive.endswith("\\"):
@@ -515,6 +505,7 @@ class TopIslandWindow(QWidget):
             hours = uptime_s / 3600.0
             bat_str = f"{hours:.1f}h" if hours < 24 else f"{(hours/24):.1f}d"
 
+        # 4x2 matrix layout (124px width, 8px gap -> 352..872)
         col1_x = 352.0
         col2_x = 484.0
         col3_x = 616.0
@@ -539,10 +530,10 @@ class TopIslandWindow(QWidget):
         self._paint_pill(p, col1_x, row2_y, pw, ph, QColor("#6366f1"), "DISK", f"{disk_val:.0f}%", self._pill_scales[4], self._pill_alphas[4])
         # Pill 6: TEMP (Red/Rose #f4505e)
         self._paint_pill(p, col2_x, row2_y, pw, ph, QColor("#f4505e"), "TEMP", temp_str, self._pill_scales[5], self._pill_alphas[5])
-        # Pill 7: PROC (Orange #f97316)
-        self._paint_pill(p, col3_x, row2_y, pw, ph, QColor("#f97316"), "PROC", f"{proc_val}", self._pill_scales[6], self._pill_alphas[6])
-        # Pill 8: BAT / SYS (Lime #10b981)
-        self._paint_pill(p, col4_x, row2_y, pw, ph, QColor("#10b981"), bat_label, bat_str, self._pill_scales[7], self._pill_alphas[7])
+        # Pill 7: BAT / SYS (Lime #10b981)
+        self._paint_pill(p, col3_x, row2_y, pw, ph, QColor("#10b981"), bat_label, bat_str, self._pill_scales[6], self._pill_alphas[6])
+        # Pill 8: SET (Sky #38bdf8)
+        self._paint_pill(p, col4_x, row2_y, pw, ph, QColor("#38bdf8"), "SET", "CONFIG", self._pill_scales[7], self._pill_alphas[7])
 
     def _paint_pill(
         self,

@@ -1,4 +1,4 @@
-"""Compact HUD panel for SYS-SENTINEL.
+"""Compact HUD panel for Sentinel.
 
 Frameless, transparent, stays on top, never steals keyboard focus,
 and displays live system hardware telemetry.
@@ -168,7 +168,7 @@ class SentiHud(QWidget):
         # 1. Header (Title + Close [X])
         header = QHBoxLayout()
         title_box = QVBoxLayout()
-        app_title = QLabel("SYS-SENTINEL")
+        app_title = QLabel("Sentinel")
         app_title.setStyleSheet("color: #00e5ff; font-size: 12px; font-weight: 800; letter-spacing: 1px;")
         sub_title = QLabel("LIVE TELEMETRY HUD")
         sub_title.setStyleSheet("color: #687894; font-size: 9px; font-weight: 600;")

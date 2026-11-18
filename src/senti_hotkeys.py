@@ -50,7 +50,7 @@ class WindowsHotKeyFilter(QAbstractNativeEventFilter):
 
 
 class GlobalHotKeyManager:
-    """Registers and manages global hotkeys for the SYS-SENTINEL desktop companion."""
+    """Registers and manages global hotkeys for the Sentinel desktop companion."""
 
     def __init__(self):
         self._callbacks: Dict[int, Callable[[], None]] = {}

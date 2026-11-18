@@ -100,7 +100,7 @@ def create_dashboard(data):
     # Header
     header = Panel(
         Align.center(
-            Text("SYS-SENTINEL", style="bold cyan", justify="center")
+            Text("Sentinel", style="bold cyan", justify="center")
             + Text("\nSYSTEM INTELLIGENCE & HEALTH MONITOR M.1",
                    style="dim white"),
             vertical="middle"
@@ -237,7 +237,7 @@ def main():
 
     console.print(
         Panel(
-            "[bold cyan]INITIALIZING SYS-SENTINEL...[/]\n"
+            "[bold cyan]INITIALIZING SENTINEL...[/]\n"
             "[dim]Loading system intelligence modules[/]",
             border_style="bright_blue",
             expand=True
