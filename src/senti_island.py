@@ -14,11 +14,13 @@ import time
 from typing import Optional, Callable, Dict, Any, List
 from PySide6.QtCore import (
     Qt,
+    QRect,
     QRectF,
     QPoint,
     QPointF,
     QTimer,
     QPropertyAnimation,
+    QParallelAnimationGroup,
     QEasingCurve,
 )
 from PySide6.QtGui import (
@@ -61,6 +63,8 @@ class GreetingBubbleWidget(QWidget):
         )
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         self.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating)
+        # Ensure native platform window handle is instantiated
+        self.winId()
 
         self._text: str = "Hello, Operator!"
         self.setFixedSize(190, 40)
@@ -185,6 +189,8 @@ class TopIslandWindow(QWidget):
         )
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         self.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating)
+        # Ensure native platform window handle is instantiated
+        self.winId()
 
         # Minimalist 892 x 136 layout (clean dual-card design with 8 subsystem pills)
         self.setFixedSize(892, 136)
@@ -212,9 +218,9 @@ class TopIslandWindow(QWidget):
         self._hover_target: Optional[str] = None
         self.setMouseTracking(True)
 
-        # Pill entrance animations (scale, opacity) for all 8 pills (default visible)
-        self._pill_scales = [1.0] * 8
-        self._pill_alphas = [1.0] * 8
+        # Pill entrance animations (scale, opacity) for all 8 pills (default hidden before entrance)
+        self._pill_scales = [0.0] * 8
+        self._pill_alphas = [0.0] * 8
         self._pill_timers: List[QTimer] = []
 
         # Opacity animation for hide/show
@@ -224,6 +230,7 @@ class TopIslandWindow(QWidget):
         self._fade_anim = QPropertyAnimation(self._opacity_effect, b"opacity", self)
         self._fade_anim.setDuration(160)
         self._fade_anim.setEasingCurve(QEasingCurve.Type.InOutCubic)
+        self._entrance_group: Optional[QParallelAnimationGroup] = None
 
     def animate_pills_entrance(self, on_pill_pop: Optional[Callable[[], None]] = None):
         """Smooth staggered spring entrance for all 8 subsystem metric pills."""
@@ -296,7 +303,8 @@ class TopIslandWindow(QWidget):
         self._telemetry["ping_ms"] = data.get("ping_ms")
         self._telemetry["battery"] = data.get("battery")
         self._telemetry["uptime_seconds"] = data.get("uptime_seconds", 0)
-        self.update()
+        if self.isVisible():
+            self.update()
 
     # --- Mouse & Interaction ---
 
@@ -403,7 +411,49 @@ class TopIslandWindow(QWidget):
         self._hover_target = None
         self.update()
 
-    # --- Fade In / Out ---
+    # --- Fade In / Out & Dynamic Entrances ---
+
+    def slide_and_fade_in(
+        self,
+        target_pos: QPoint,
+        duration: int = 280,
+        on_finished: Optional[Callable[[], None]] = None,
+    ):
+        """Minimalist, dynamic entrance: slides down slightly from top and fades in with low latency."""
+        self.show()
+        self.raise_()
+        self._fade_anim.stop()
+
+        start_pos = QPoint(target_pos.x(), max(0, target_pos.y() - 18))
+        self.move(start_pos)
+
+        if self._entrance_group and self._entrance_group.state() == QPropertyAnimation.State.Running:
+            self._entrance_group.stop()
+
+        self._entrance_group = QParallelAnimationGroup(self)
+
+        start_geo = QRect(start_pos.x(), start_pos.y(), self.width(), self.height())
+        target_geo = QRect(target_pos.x(), target_pos.y(), self.width(), self.height())
+
+        geom_anim = QPropertyAnimation(self, b"geometry", self)
+        geom_anim.setDuration(duration)
+        geom_anim.setStartValue(start_geo)
+        geom_anim.setEndValue(target_geo)
+        geom_anim.setEasingCurve(QEasingCurve.Type.OutCubic)
+
+        op_anim = QPropertyAnimation(self._opacity_effect, b"opacity", self)
+        op_anim.setDuration(duration)
+        op_anim.setStartValue(self._opacity_effect.opacity())
+        op_anim.setEndValue(1.0)
+        op_anim.setEasingCurve(QEasingCurve.Type.OutCubic)
+
+        self._entrance_group.addAnimation(geom_anim)
+        self._entrance_group.addAnimation(op_anim)
+
+        if on_finished:
+            self._entrance_group.finished.connect(on_finished)
+
+        self._entrance_group.start()
 
     def fade_in(self):
         self.show()

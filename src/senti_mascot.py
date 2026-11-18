@@ -95,13 +95,23 @@ class SentiMascot(QWidget):
         self.color_eyes = QColor("#00e5ff")
         self.color_glow = QColor("#00e5ff")
 
-        # 60 fps animation timer
+        # 60 fps animation timer (starts on show, stops on hide)
         self._timer = QTimer(self)
         self._timer.setInterval(16)
         self._timer.timeout.connect(self._on_animation_frame)
-        self._timer.start()
 
         self._apply_mood_targets()
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        self._last_blink_time = time.time()
+        if not self._timer.isActive():
+            self._timer.start()
+
+    def hideEvent(self, event):
+        super().hideEvent(event)
+        if self._timer.isActive():
+            self._timer.stop()
 
     # --- Properties ---
 
@@ -187,6 +197,9 @@ class SentiMascot(QWidget):
     # --- Animation Frame ---
 
     def _on_animation_frame(self):
+        if not self.isVisible() or not self.window().isVisible():
+            return
+
         now = time.time()
         dt = 0.016
 

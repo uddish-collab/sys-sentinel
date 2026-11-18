@@ -102,6 +102,8 @@ class CompanionWindow(QWidget):
         )
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         self.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating)
+        # Ensure native platform window handle is instantiated
+        self.winId()
 
         # Mascot widget
         self.mascot = SentiMascot(self)
@@ -352,7 +354,13 @@ class CompanionWindow(QWidget):
 
     # --- Glide Animation (for smooth return to island) ---
 
-    def glide_to_rect(self, target_geo: QRect, duration: int = 340, on_finished: Optional[Callable[[], None]] = None):
+    def glide_to_rect(
+        self,
+        target_geo: QRect,
+        duration: int = 340,
+        easing_curve: QEasingCurve.Type = QEasingCurve.Type.InOutCubic,
+        on_finished: Optional[Callable[[], None]] = None,
+    ):
         if self._motion_group and self._motion_group.state() == QPropertyAnimation.State.Running:
             self._motion_group.stop()
 
@@ -362,7 +370,7 @@ class CompanionWindow(QWidget):
         geom_anim.setDuration(duration)
         geom_anim.setStartValue(self.geometry())
         geom_anim.setEndValue(target_geo)
-        geom_anim.setEasingCurve(QEasingCurve.Type.InOutCubic)
+        geom_anim.setEasingCurve(easing_curve)
 
         self._motion_group.addAnimation(geom_anim)
 
@@ -741,41 +749,71 @@ class SentiApp:
         self.poll_telemetry()
         self.poll_timer.start()
 
-        if self.companion.is_docked:
-            # Dynamic entrance choreography matching Mochi:
-            # 1. Island appears
-            self.island.show()
-            self.island.raise_()
+        # Dynamic entrance choreography:
+        # 1. Senti companion appears FIRST and "does its thing" (squish, cute wave, greeting chime)
+        # 2. Island slides down and fades in smoothly
+        # 3. Senti glides dynamically and cutely into the island dock nest
+        # 4. Island pills smoothly cascade into view with spring pop transitions
 
-            # 2. Senti appears directly centered in the island, radiant aura glowing, waves hello
-            start_x = self.island.x() + 320 - DOCKED_SIZE // 2
-            start_y = self.island.y() + 68 - DOCKED_SIZE // 2
-            self.companion.move(start_x, start_y)
-            self.companion.show()
-            self.companion.raise_()
-            self.companion.mascot.trigger_squish()
-            self.companion.mascot.trigger_wave(2.6)
-            self.play("greeting")
+        island_target_pos = get_default_island_pos(self.island.width(), self.island.height())
+        self.island.move(island_target_pos)
+        self.settings.set_island_pos(island_target_pos)
 
-            # 3. Senti glides smoothly into Card 1 nest after waving in center
-            def _glide_to_nest():
-                dock_pos = self.island.get_dock_target_pos(DOCKED_SIZE)
+        # Island is initially hidden and its pills are zeroed out
+        self.island.hide()
+        self.island._opacity_effect.setOpacity(0.0)
+        self.island._pill_scales = [0.0] * 8
+        self.island._pill_alphas = [0.0] * 8
+
+        # Target dock position inside Card 1 of the island
+        dock_pos = self.island.get_dock_target_pos(DOCKED_SIZE)
+
+        # Step 1: Senti appears FIRST in open desktop space slightly below and offset from the dock
+        senti_start_x = dock_pos.x() + 90
+        senti_start_y = island_target_pos.y() + 90
+        self.companion.move(senti_start_x, senti_start_y)
+        self.companion.resize(NORMAL_SIZE, NORMAL_SIZE)
+        self.companion.is_docked = False
+        self.companion.show()
+        self.companion.raise_()
+
+        # Senti does its thing: playful squish, cheerful waving paw, greeting tone
+        self.companion.mascot.trigger_squish()
+        self.companion.mascot.trigger_wave(2.2)
+        self.play("greeting")
+
+        # Step 2: Then the island comes (slides down and fades in)
+        def _bring_in_island():
+            self.island.slide_and_fade_in(island_target_pos, duration=280)
+
+            # Step 3: Senti dynamically and cutely glides to the island dock
+            def _glide_senti_to_dock():
+                self.companion.mascot.stop_wave()
                 target_geo = QRect(dock_pos.x(), dock_pos.y(), DOCKED_SIZE, DOCKED_SIZE)
 
                 def _on_dock_landed():
+                    self.companion.is_docked = True
+                    self.settings.set_docked_state(True)
                     self.companion.raise_()
                     self.companion.mascot.trigger_squish()
                     self.play("attach")
-                    # 4. Card 2 metric pills cascade into view with spring pop transitions
-                    self.island.animate_pills_entrance(on_pill_pop=lambda: self.play("tick"))
 
-                self.companion.glide_to_rect(target_geo, duration=480, on_finished=_on_dock_landed)
+                    # Step 4: Pills appear in a smooth transition
+                    QTimer.singleShot(60, lambda: self.island.animate_pills_entrance(on_pill_pop=lambda: self.play("tick")))
 
-            QTimer.singleShot(1200, _glide_to_nest)
-        else:
-            self.companion.show()
-            self.companion.mascot.trigger_wave(1.8)
-            self.play("greeting")
+                # Dynamic cute glide with OutBack curve (subtle playful landing hop)
+                self.companion.glide_to_rect(
+                    target_geo,
+                    duration=360,
+                    easing_curve=QEasingCurve.Type.OutBack,
+                    on_finished=_on_dock_landed,
+                )
+
+            # Initiate Senti's glide ~160ms into the island entrance for fluid seamless motion
+            QTimer.singleShot(160, _glide_senti_to_dock)
+
+        # Allow Senti ~900ms to greet before the island appears
+        QTimer.singleShot(900, _bring_in_island)
 
     def quit_app(self):
         self.dashboard.close()
