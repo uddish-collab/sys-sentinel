@@ -89,6 +89,15 @@ class SentiMascot(QWidget):
         self._target_wave_amount: float = 0.0
         self._wave_time_remaining: float = 0.0
 
+        # Gaze tracking & expressive reactions (when hovering telemetry pills)
+        self._gaze_x: float = 0.0
+        self._target_gaze_x: float = 0.0
+        self._gaze_y: float = 0.0
+        self._target_gaze_y: float = 0.0
+        self._wink_amount: float = 0.0
+        self._target_wink_amount: float = 0.0
+        self._pill_focus: Optional[str] = None
+
         # Base custom colors (provided by settings/controller)
         self.color_body = QColor("#f4f1ea")
         self.color_details = QColor("#14213d")
@@ -160,6 +169,81 @@ class SentiMascot(QWidget):
         self._wave_time_remaining = 0.0
         self.update()
 
+    def set_pill_hover_focus(self, pill_name: Optional[str], telemetry: Optional[dict] = None):
+        """Dynamic eye tracking & expressive reaction when hovering over island pills."""
+        self._pill_focus = pill_name
+
+        if not pill_name:
+            self._target_gaze_x = 0.0
+            self._target_gaze_y = 0.0
+            self._target_wink_amount = 0.0
+            self._target_eye_width = 1.0
+            self._target_eye_height = 1.0
+            self._target_brow_angle = 0.0
+            self._target_tint_amount = 0.0
+            self.update()
+            return
+
+        # Senti sits in Card 1 on the left; pills are arranged in Card 2 on the right.
+        # Set distinct gaze vectors looking toward the specific pill.
+        gaze_map = {
+            "pill_cpu": (0.60, -0.22, QColor("#22c55e")),
+            "pill_ram": (0.75, -0.22, QColor("#f5a524")),
+            "pill_gpu": (0.90, -0.18, QColor("#00e5ff")),
+            "pill_net": (1.00, -0.12, QColor("#a855f7")),
+            "pill_disk": (0.60, 0.28, QColor("#6366f1")),
+            "pill_temp": (0.75, 0.28, QColor("#f4505e")),
+            "pill_sys": (0.90, 0.24, QColor("#10b981")),
+            "pill_set": (1.00, 0.24, QColor("#38bdf8")),
+        }
+
+        gx, gy, color = gaze_map.get(pill_name, (0.75, 0.0, QColor("#00e5ff")))
+        self._target_gaze_x = gx
+        self._target_gaze_y = gy
+
+        # Pill accent lighting tint on Senti's visor glow and eyes
+        self._tint_r = float(color.red())
+        self._tint_g = float(color.green())
+        self._tint_b = float(color.blue())
+        self._target_tint_amount = 0.50
+
+        # Check telemetry for metric state
+        telem = telemetry or {}
+        val = 0.0
+        if pill_name == "pill_cpu":
+            val = telem.get("cpu", 0.0)
+        elif pill_name == "pill_ram":
+            val = telem.get("ram", 0.0)
+        elif pill_name == "pill_gpu":
+            val = telem.get("gpu_load", 0.0)
+        elif pill_name == "pill_disk":
+            val = telem.get("disk", 0.0)
+        elif pill_name == "pill_temp":
+            val = telem.get("temperature_c") or 0.0
+
+        if pill_name == "pill_set":
+            # Playful cute wink when hovering Settings!
+            self._target_wink_amount = 1.0
+            self._target_brow_angle = 0.15
+            self._target_eye_width = 1.05
+            self.trigger_squish()
+        elif val >= 75.0:
+            # Alert / curious attentive wide-eyed look
+            self._target_wink_amount = 0.0
+            self._target_eye_width = 1.25
+            self._target_eye_height = 1.20
+            self._target_brow_angle = 0.25
+            self.trigger_squish()
+        else:
+            # Happy attentive focus
+            self._target_wink_amount = 0.0
+            self._target_eye_width = 1.08
+            self._target_eye_height = 1.0
+            self._target_brow_angle = 0.0
+            self.trigger_squish()
+
+        self.update()
+
     # --- Mood Configurations ---
 
     def _apply_mood_targets(self):
@@ -215,6 +299,11 @@ class SentiMascot(QWidget):
         self._pulse_speed += (self._target_pulse_speed - self._pulse_speed) * alpha
         self._shake_amount += (self._target_shake_amount - self._shake_amount) * alpha
         self._tint_amount += (self._target_tint_amount - self._tint_amount) * alpha
+
+        # Gaze and expressive wink easing
+        self._gaze_x += (self._target_gaze_x - self._gaze_x) * 0.22
+        self._gaze_y += (self._target_gaze_y - self._gaze_y) * 0.22
+        self._wink_amount += (self._target_wink_amount - self._wink_amount) * 0.22
 
         # Waving hand timer
         if self._wave_time_remaining > 0:
@@ -445,34 +534,49 @@ class SentiMascot(QWidget):
         eye_h = max(1.8, base_h * blink_factor)
         eye_spacing = visor_w * 0.24
 
-        left_eye_x = cx - eye_spacing
-        right_eye_x = cx + eye_spacing
+        # Gaze tracking shifts (looking directly at hovered pill)
+        shift_x = self._gaze_x * (visor_w * 0.12)
+        shift_y = self._gaze_y * (visor_h * 0.12)
+
+        left_eye_x = cx - eye_spacing + shift_x
+        right_eye_x = cx + eye_spacing + shift_x
+        gaze_center_y = eye_center_y + shift_y
 
         # Soft halo glow behind eyes
         halo_r = max(eye_w, base_h) * 1.4
         glow_alpha = int(55 * pulse)
         for ex in (left_eye_x, right_eye_x):
-            halo = QRadialGradient(ex, eye_center_y, halo_r)
+            halo = QRadialGradient(ex, gaze_center_y, halo_r)
             halo.setColorAt(0.0, QColor(eyes_c.red(), eyes_c.green(), eyes_c.blue(), glow_alpha))
             halo.setColorAt(0.65, QColor(eyes_c.red(), eyes_c.green(), eyes_c.blue(), int(glow_alpha * 0.3)))
             halo.setColorAt(1.0, QColor(eyes_c.red(), eyes_c.green(), eyes_c.blue(), 0))
             p.setPen(Qt.PenStyle.NoPen)
             p.setBrush(halo)
-            p.drawEllipse(QPointF(ex, eye_center_y), halo_r, halo_r)
+            p.drawEllipse(QPointF(ex, gaze_center_y), halo_r, halo_r)
 
         # Solid Glowing Pill Eyes
         p.setBrush(eyes_c)
-        for ex in (left_eye_x, right_eye_x):
-            er = eye_w / 2.0
-            eye_rect = QRectF(ex - er, eye_center_y - eye_h / 2.0, eye_w, eye_h)
-            p.drawRoundedRect(eye_rect, er, er)
+        er = eye_w / 2.0
 
-            # Tiny top specular reflection dot if eye is open
-            if blink_factor > 0.6:
-                spec_r = max(1.0, eye_w * 0.22)
-                p.setBrush(QColor(255, 255, 255, 230))
-                p.drawEllipse(QPointF(ex - er * 0.3, eye_center_y - eye_h * 0.25), spec_r, spec_r)
-                p.setBrush(eyes_c)
+        # Left eye
+        left_eye_rect = QRectF(left_eye_x - er, gaze_center_y - eye_h / 2.0, eye_w, eye_h)
+        p.drawRoundedRect(left_eye_rect, er, er)
+        if blink_factor > 0.6:
+            spec_r = max(1.0, eye_w * 0.22)
+            p.setBrush(QColor(255, 255, 255, 230))
+            p.drawEllipse(QPointF(left_eye_x - er * 0.3, gaze_center_y - eye_h * 0.25), spec_r, spec_r)
+            p.setBrush(eyes_c)
+
+        # Right eye (handles normal blink and playful wink)
+        right_blink = blink_factor * max(0.12, 1.0 - self._wink_amount * 0.88)
+        right_eye_h = max(1.8, base_h * right_blink)
+        right_eye_rect = QRectF(right_eye_x - er, gaze_center_y - right_eye_h / 2.0, eye_w, right_eye_h)
+        p.drawRoundedRect(right_eye_rect, er, min(er, right_eye_h / 2.0))
+        if right_blink > 0.6:
+            spec_r = max(1.0, eye_w * 0.22)
+            p.setBrush(QColor(255, 255, 255, 230))
+            p.drawEllipse(QPointF(right_eye_x - er * 0.3, gaze_center_y - right_eye_h * 0.25), spec_r, spec_r)
+            p.setBrush(eyes_c)
 
     def _paint_orb(
         self,
@@ -531,24 +635,28 @@ class SentiMascot(QWidget):
         eye_h = inner_r * 0.46 * self._eye_height * blink_factor
         spacing = inner_r * 0.42
 
-        for ex in (cx - spacing, cx + spacing):
+        shift_x = self._gaze_x * (inner_r * 0.15)
+        shift_y = self._gaze_y * (inner_r * 0.15)
+
+        for ex in (cx - spacing + shift_x, cx + spacing + shift_x):
+            ey = cy + shift_y
             # Halo
-            halo = QRadialGradient(ex, cy, eye_w * 1.4)
+            halo = QRadialGradient(ex, ey, eye_w * 1.4)
             halo.setColorAt(0.0, QColor(eyes_c.red(), eyes_c.green(), eyes_c.blue(), int(140 * pulse)))
             halo.setColorAt(1.0, QColor(eyes_c.red(), eyes_c.green(), eyes_c.blue(), 0))
             p.setPen(Qt.PenStyle.NoPen)
             p.setBrush(halo)
-            p.drawEllipse(QPointF(ex, cy), eye_w * 1.4, eye_w * 1.4)
+            p.drawEllipse(QPointF(ex, ey), eye_w * 1.4, eye_w * 1.4)
 
             # Core
-            eye_rect = QRectF(ex - eye_w / 2.0, cy - eye_h / 2.0, eye_w, eye_h)
+            eye_rect = QRectF(ex - eye_w / 2.0, ey - eye_h / 2.0, eye_w, eye_h)
             p.setBrush(eyes_c)
             p.drawRoundedRect(eye_rect, eye_w / 2.0, eye_h / 2.0)
 
             # Specular dot
             if blink_factor > 0.5:
                 p.setBrush(QColor(255, 255, 255, 220))
-                p.drawEllipse(QRectF(ex - eye_w * 0.25, cy - eye_h * 0.35, max(2.0, eye_w * 0.3), max(2.0, eye_h * 0.3)))
+                p.drawEllipse(QRectF(ex - eye_w * 0.25, ey - eye_h * 0.35, max(2.0, eye_w * 0.3), max(2.0, eye_h * 0.3)))
 
     def mousePressEvent(self, event):
         if event.button() == Qt.MouseButton.LeftButton:

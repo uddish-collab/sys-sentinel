@@ -485,6 +485,7 @@ class SentiApp:
             on_toggle_sound=self.toggle_sound,
             is_sound_enabled_getter=lambda: self.settings.is_sound_enabled(),
             on_open_tab=self.open_dashboard_tab,
+            on_pill_hover=self._on_island_pill_hover,
         )
         # Position island at top desktop center on launch
         island_pos = get_default_island_pos(self.island.width(), self.island.height())
@@ -657,6 +658,14 @@ class SentiApp:
             dock_pos = self.island.get_dock_target_pos(self.companion.width())
             self.companion.move(dock_pos)
             self.companion.raise_()
+
+    def _on_island_pill_hover(self, pill_name: Optional[str]):
+        """Direct Senti's gaze and expressive reaction toward the hovered telemetry pill."""
+        if not self.companion or not hasattr(self.companion, "mascot"):
+            return
+        self.companion.mascot.set_pill_hover_focus(pill_name, telemetry=self.island._telemetry)
+        if pill_name:
+            self.play("hover")
 
     def _on_manual_refresh(self):
         """Manual telemetry poll triggered from the island UI."""

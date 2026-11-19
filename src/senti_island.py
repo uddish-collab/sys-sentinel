@@ -157,6 +157,18 @@ class GreetingBubbleWidget(QWidget):
             p.end()
 
 
+PILL_HIT_INDEX = {
+    "pill_cpu": 0,
+    "pill_ram": 1,
+    "pill_gpu": 2,
+    "pill_net": 3,
+    "pill_disk": 4,
+    "pill_temp": 5,
+    "pill_sys": 6,
+    "pill_set": 7,
+}
+
+
 class TopIslandWindow(QWidget):
     """Minimalist solid opaque desktop island matching Mochi reference exactly."""
 
@@ -169,6 +181,7 @@ class TopIslandWindow(QWidget):
         on_toggle_sound: Optional[Callable[[], None]] = None,
         is_sound_enabled_getter: Optional[Callable[[], bool]] = None,
         on_open_tab: Optional[Callable[[str], None]] = None,
+        on_pill_hover: Optional[Callable[[Optional[str]], None]] = None,
         parent: Optional[QWidget] = None,
     ):
         super().__init__(parent)
@@ -179,6 +192,7 @@ class TopIslandWindow(QWidget):
         self.on_toggle_sound = on_toggle_sound
         self.is_sound_enabled_getter = is_sound_enabled_getter
         self.on_open_tab = on_open_tab
+        self.on_pill_hover = on_pill_hover
 
         # Windows Tool window attributes: Frameless, Always on Top, Never steals keyboard focus
         self.setWindowFlags(
@@ -217,6 +231,10 @@ class TopIslandWindow(QWidget):
         # Hover state
         self._hover_target: Optional[str] = None
         self.setMouseTracking(True)
+
+        # Smooth per-pill hover weights (0.0 = idle, 1.0 = fully hovered)
+        self._hover_progress: List[float] = [0.0] * 8
+        self._hover_anim_timer: Optional[QTimer] = None
 
         # Pill entrance animations (scale, opacity) for all 8 pills (default hidden before entrance)
         self._pill_scales = [0.0] * 8
@@ -381,11 +399,46 @@ class TopIslandWindow(QWidget):
 
             event.accept()
 
+    def _start_hover_animation(self):
+        if not self._hover_anim_timer:
+            self._hover_anim_timer = QTimer(self)
+            self._hover_anim_timer.setInterval(16)
+            self._hover_anim_timer.timeout.connect(self._step_hover_anim)
+        if not self._hover_anim_timer.isActive():
+            self._hover_anim_timer.start()
+
+    def _step_hover_anim(self):
+        active_idx = PILL_HIT_INDEX.get(self._hover_target) if self._hover_target else None
+        changed = False
+
+        for i in range(8):
+            target = 1.0 if (active_idx == i) else 0.0
+            diff = target - self._hover_progress[i]
+            if abs(diff) > 0.005:
+                self._hover_progress[i] += diff * 0.32
+                changed = True
+            else:
+                self._hover_progress[i] = target
+
+        if changed:
+            self.update()
+        elif self._hover_anim_timer:
+            self._hover_anim_timer.stop()
+
     def mouseMoveEvent(self, event):
         hit = self._hit_test(event.pos())
         if hit != self._hover_target:
             self._hover_target = hit
-            self.update()
+            if hit and hit.startswith("pill_"):
+                self.setCursor(Qt.CursorShape.PointingHandCursor)
+            elif hit in ("chat", "sound", "refresh"):
+                self.setCursor(Qt.CursorShape.PointingHandCursor)
+            else:
+                self.unsetCursor()
+
+            self._start_hover_animation()
+            if self.on_pill_hover:
+                self.on_pill_hover(hit)
 
         # Drag entire island
         if event.buttons() & Qt.MouseButton.LeftButton:
@@ -408,8 +461,12 @@ class TopIslandWindow(QWidget):
 
     def leaveEvent(self, event):
         del event
-        self._hover_target = None
-        self.update()
+        if self._hover_target is not None:
+            self._hover_target = None
+            self.unsetCursor()
+            self._start_hover_animation()
+            if self.on_pill_hover:
+                self.on_pill_hover(None)
 
     # --- Fade In / Out & Dynamic Entrances ---
 
@@ -565,25 +622,35 @@ class TopIslandWindow(QWidget):
         pw = 124.0
         ph = 30.0
 
+        dim_amount = max(self._hover_progress)
+
         # Row 1
         # Pill 1: CPU (Emerald #22c55e)
-        self._paint_pill(p, col1_x, row1_y, pw, ph, QColor("#22c55e"), "CPU", f"{cpu_val:.0f}%", self._pill_scales[0], self._pill_alphas[0])
+        self._paint_pill(p, col1_x, row1_y, pw, ph, QColor("#22c55e"), "CPU", f"{cpu_val:.0f}%",
+                         self._pill_scales[0], self._pill_alphas[0], self._hover_progress[0], dim_amount if self._hover_progress[0] < 0.5 else 0.0)
         # Pill 2: RAM (Amber #f5a524)
-        self._paint_pill(p, col2_x, row1_y, pw, ph, QColor("#f5a524"), "RAM", f"{ram_val:.0f}%", self._pill_scales[1], self._pill_alphas[1])
+        self._paint_pill(p, col2_x, row1_y, pw, ph, QColor("#f5a524"), "RAM", f"{ram_val:.0f}%",
+                         self._pill_scales[1], self._pill_alphas[1], self._hover_progress[1], dim_amount if self._hover_progress[1] < 0.5 else 0.0)
         # Pill 3: GPU (Cyan #00e5ff)
-        self._paint_pill(p, col3_x, row1_y, pw, ph, QColor("#00e5ff"), "GPU", f"{gpu_val:.0f}%", self._pill_scales[2], self._pill_alphas[2])
+        self._paint_pill(p, col3_x, row1_y, pw, ph, QColor("#00e5ff"), "GPU", f"{gpu_val:.0f}%",
+                         self._pill_scales[2], self._pill_alphas[2], self._hover_progress[2], dim_amount if self._hover_progress[2] < 0.5 else 0.0)
         # Pill 4: NET (Violet #a855f7)
-        self._paint_pill(p, col4_x, row1_y, pw, ph, QColor("#a855f7"), "NET", net_str, self._pill_scales[3], self._pill_alphas[3])
+        self._paint_pill(p, col4_x, row1_y, pw, ph, QColor("#a855f7"), "NET", net_str,
+                         self._pill_scales[3], self._pill_alphas[3], self._hover_progress[3], dim_amount if self._hover_progress[3] < 0.5 else 0.0)
 
         # Row 2
         # Pill 5: DISK (Indigo #6366f1)
-        self._paint_pill(p, col1_x, row2_y, pw, ph, QColor("#6366f1"), "DISK", f"{disk_val:.0f}%", self._pill_scales[4], self._pill_alphas[4])
+        self._paint_pill(p, col1_x, row2_y, pw, ph, QColor("#6366f1"), "DISK", f"{disk_val:.0f}%",
+                         self._pill_scales[4], self._pill_alphas[4], self._hover_progress[4], dim_amount if self._hover_progress[4] < 0.5 else 0.0)
         # Pill 6: TEMP (Red/Rose #f4505e)
-        self._paint_pill(p, col2_x, row2_y, pw, ph, QColor("#f4505e"), "TEMP", temp_str, self._pill_scales[5], self._pill_alphas[5])
+        self._paint_pill(p, col2_x, row2_y, pw, ph, QColor("#f4505e"), "TEMP", temp_str,
+                         self._pill_scales[5], self._pill_alphas[5], self._hover_progress[5], dim_amount if self._hover_progress[5] < 0.5 else 0.0)
         # Pill 7: BAT / SYS (Lime #10b981)
-        self._paint_pill(p, col3_x, row2_y, pw, ph, QColor("#10b981"), bat_label, bat_str, self._pill_scales[6], self._pill_alphas[6])
+        self._paint_pill(p, col3_x, row2_y, pw, ph, QColor("#10b981"), bat_label, bat_str,
+                         self._pill_scales[6], self._pill_alphas[6], self._hover_progress[6], dim_amount if self._hover_progress[6] < 0.5 else 0.0)
         # Pill 8: SET (Sky #38bdf8)
-        self._paint_pill(p, col4_x, row2_y, pw, ph, QColor("#38bdf8"), "SET", "CONFIG", self._pill_scales[7], self._pill_alphas[7])
+        self._paint_pill(p, col4_x, row2_y, pw, ph, QColor("#38bdf8"), "SET", "CONFIG",
+                         self._pill_scales[7], self._pill_alphas[7], self._hover_progress[7], dim_amount if self._hover_progress[7] < 0.5 else 0.0)
 
     def _paint_pill(
         self,
@@ -597,29 +664,71 @@ class TopIslandWindow(QWidget):
         val_str: str,
         scale: float = 1.0,
         alpha: float = 1.0,
+        hover_w: float = 0.0,
+        dim_other: float = 0.0,
     ):
-        """Paint a single pill (solid dark opaque #16181f, crisp border #252934)."""
+        """Paint a single pill with dynamic hover glow, elevation, and accent styling."""
         if scale < 0.01 or alpha < 0.01:
             return
 
         p.save()
-        if scale < 0.999 or scale > 1.001 or alpha < 0.999:
+
+        # Combine entrance scale with subtle hover elevation (scale up to 1.04)
+        effective_scale = scale * (1.0 + hover_w * 0.04)
+        effective_alpha = alpha * (1.0 - dim_other * 0.22)
+
+        if effective_scale < 0.999 or effective_scale > 1.001 or effective_alpha < 0.999:
             pcx = px + pw / 2.0
             pcy = py + ph / 2.0
             p.translate(pcx, pcy)
-            p.scale(scale, scale)
+            p.scale(effective_scale, effective_scale)
             p.translate(-pcx, -pcy)
-            p.setOpacity(alpha)
+            p.setOpacity(effective_alpha)
 
         rect = QRectF(px, py, pw, ph)
-        p.setPen(QPen(QColor("#252934"), 1.0))
-        p.setBrush(QColor("#16181f"))
+
+        # 1. Outer Accent Glow on Hover
+        if hover_w > 0.02:
+            glow_r = 15.0
+            glow_rect = rect.adjusted(-3.0 * hover_w, -3.0 * hover_w, 3.0 * hover_w, 3.0 * hover_w)
+            glow_alpha = int(55 * hover_w)
+            p.setPen(Qt.PenStyle.NoPen)
+            p.setBrush(QColor(badge_color.red(), badge_color.green(), badge_color.blue(), glow_alpha))
+            p.drawRoundedRect(glow_rect, glow_r, glow_r)
+
+        # 2. Pill Background (solid dark #16181f, or elevated luxury gradient on hover)
+        if hover_w > 0.02:
+            bg_grad = QLinearGradient(px, py, px, py + ph)
+            top_c = QColor(
+                int(22 + (badge_color.red() - 22) * 0.14 * hover_w),
+                int(26 + (badge_color.green() - 26) * 0.14 * hover_w),
+                int(36 + (badge_color.blue() - 36) * 0.14 * hover_w),
+            )
+            bot_c = QColor(
+                int(20 + (badge_color.red() - 20) * 0.05 * hover_w),
+                int(22 + (badge_color.green() - 22) * 0.05 * hover_w),
+                int(28 + (badge_color.blue() - 28) * 0.05 * hover_w),
+            )
+            bg_grad.setColorAt(0.0, top_c)
+            bg_grad.setColorAt(1.0, bot_c)
+            p.setBrush(bg_grad)
+
+            # Glowing Accent Border
+            br = int(37 + (badge_color.red() - 37) * hover_w)
+            bg = int(41 + (badge_color.green() - 41) * hover_w)
+            bb = int(52 + (badge_color.blue() - 52) * hover_w)
+            border_pen = QPen(QColor(br, bg, bb), 1.0 + 0.6 * hover_w)
+            p.setPen(border_pen)
+        else:
+            p.setPen(QPen(QColor("#252934"), 1.0))
+            p.setBrush(QColor("#16181f"))
+
         p.drawRoundedRect(rect, 14.0, 14.0)
 
-        # Mini badge (.mini: 20x19, radius 6px)
+        # 3. Mini badge (.mini: 20x19, radius 6px) with subtle pop on hover
         bx, by, bw, bh = px + 6.0, py + 5.5, 20.0, 19.0
         p.setPen(Qt.PenStyle.NoPen)
-        p.setBrush(badge_color)
+        p.setBrush(badge_color.lighter(int(100 + 15 * hover_w)))
         p.drawRoundedRect(QRectF(bx, by, bw, bh), 6.0, 6.0)
 
         # Two little black dot eyes
@@ -627,18 +736,22 @@ class TopIslandWindow(QWidget):
         p.drawEllipse(QPointF(bx + 6.0, by + 9.5), 1.7, 2.2)
         p.drawEllipse(QPointF(bx + 14.0, by + 9.5), 1.7, 2.2)
 
-        # Label (.lbl)
+        # 4. Label (.lbl)
         p.setFont(QFont("Segoe UI", 7.5, QFont.Weight.DemiBold))
-        p.setPen(QColor("#6b7079"))
+        lbl_r = int(107 + (180 - 107) * hover_w)
+        lbl_g = int(112 + (190 - 112) * hover_w)
+        lbl_b = int(121 + (205 - 121) * hover_w)
+        p.setPen(QColor(lbl_r, lbl_g, lbl_b))
         p.drawText(
             QRectF(bx + bw + 6, py, 42, ph),
             Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft,
             label,
         )
 
-        # Value
+        # 5. Value (brightens on hover)
         p.setFont(QFont("Segoe UI", 8.0, QFont.Weight.Bold))
-        p.setPen(QColor("#f5f6f8"))
+        val_color = QColor("#ffffff") if hover_w > 0.05 else QColor("#f5f6f8")
+        p.setPen(val_color)
         p.drawText(
             QRectF(px, py, pw - 8, ph),
             Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignRight,
