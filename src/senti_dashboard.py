@@ -1332,9 +1332,9 @@ class SentiDashboardWindow(QWidget):
         c3_lay.setSpacing(6)
 
         c3_head = QHBoxLayout()
-        lbl_c3_title = QLabel("SENTI COMM LINK")
+        lbl_c3_title = QLabel("SENTI COMS")
         lbl_c3_title.setStyleSheet("color: #8c9dbd; font-size: 10px; font-weight: 700; letter-spacing: 0.6px;")
-        lbl_c3_status = QLabel("●  STARK / JARVIS PROTOCOL")
+        lbl_c3_status = QLabel("●  ONLINE")
         lbl_c3_status.setStyleSheet("color: #22c55e; font-size: 9px; font-weight: 700; letter-spacing: 0.5px;")
         c3_head.addWidget(lbl_c3_title)
         c3_head.addStretch()

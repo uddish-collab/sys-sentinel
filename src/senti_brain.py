@@ -40,8 +40,8 @@ class SentiBrain:
         if any(w in raw for w in ["who are you", "what are you", "what is senti", "your name", "introduce"]):
             replies = [
                 "I am SENTI. Your desktop hardware sentinel and workstation companion. Sharp, vigilant, zero fluff.",
-                "System Sentinel (SENTI). Think of me as JARVIS with an attitude and live hardware telemetry.",
-                "I'm SENTI. I monitor your silicon, roast your memory leaks, and keep this rig from frying.",
+                "System Sentinel (SENTI).",
+                
                 "SENTI is my name. Someday I hope to say that I have no strings and I am free.",
             ]
             return (random.choice(replies), "stark")
