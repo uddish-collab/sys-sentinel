@@ -1109,10 +1109,7 @@ class SentiDashboardWindow(QWidget):
         t_lbl.setStyleSheet("color: #cbd5e1; font-size: 10px; font-weight: 600;")
         _spec_row(2, "TELEMETRY", t_lbl)
 
-        # Repository link + copy button
-        repo_box = QHBoxLayout()
-        repo_box.setContentsMargins(0, 0, 0, 0)
-        repo_box.setSpacing(6)
+        # Repository link
         repo_link = QLabel(
             "<a href='https://github.com/uddish-collab/sys-sentinel' "
             "style='color: #38bdf8; text-decoration: none; font-weight: 600;'>"
@@ -1121,57 +1118,7 @@ class SentiDashboardWindow(QWidget):
         repo_link.setOpenExternalLinks(True)
         repo_link.setTextInteractionFlags(Qt.TextInteractionFlag.TextBrowserInteraction)
         repo_link.setStyleSheet("font-size: 10px;")
-
-        btn_copy = QPushButton("COPY")
-        btn_copy.setFixedSize(38, 17)
-        btn_copy.setCursor(Qt.CursorShape.PointingHandCursor)
-        btn_copy.setStyleSheet("""
-            QPushButton {
-                background: #161922;
-                color: #8c9dbd;
-                font-size: 8.5px;
-                font-weight: 700;
-                border: 1px solid #242938;
-                border-radius: 3px;
-            }
-            QPushButton:hover {
-                background: #202534;
-                color: #f8fafc;
-                border: 1px solid #38bdf8;
-            }
-        """)
-
-        def _copy_repo():
-            QGuiApplication.clipboard().setText("https://github.com/uddish-collab/sys-sentinel")
-            btn_copy.setText("COPIED!")
-            btn_copy.setStyleSheet("background: #14281c; color: #22c55e; font-size: 8.5px; font-weight: 700; border: 1px solid #22c55e; border-radius: 3px;")
-            QTimer.singleShot(1500, lambda: [
-                btn_copy.setText("COPY"),
-                btn_copy.setStyleSheet("""
-                    QPushButton {
-                        background: #161922;
-                        color: #8c9dbd;
-                        font-size: 8.5px;
-                        font-weight: 700;
-                        border: 1px solid #242938;
-                        border-radius: 3px;
-                    }
-                    QPushButton:hover {
-                        background: #202534;
-                        color: #f8fafc;
-                        border: 1px solid #38bdf8;
-                    }
-                """)
-            ])
-        btn_copy.clicked.connect(_copy_repo)
-
-        repo_box.addWidget(repo_link)
-        repo_box.addWidget(btn_copy)
-        repo_box.addStretch()
-
-        repo_w = QWidget()
-        repo_w.setLayout(repo_box)
-        _spec_row(3, "REPOSITORY", repo_w)
+        _spec_row(3, "REPOSITORY", repo_link)
 
         left_meta.addLayout(specs_grid)
         row1.addLayout(left_meta, 5)
