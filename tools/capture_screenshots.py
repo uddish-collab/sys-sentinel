@@ -11,7 +11,6 @@ if SRC_DIR not in sys.path:
 from PySide6.QtCore import Qt, QPoint
 from PySide6.QtWidgets import QApplication
 from senti_mascot import SentiMascot, render_mascot_image
-from senti_hud import SentiHud
 from senti_control import SentiControlWindow
 from senti_settings import SentiSettings
 from senti_state import (
@@ -103,34 +102,6 @@ def capture_all():
     bubble.hide()
     pix_bubble.save(os.path.join(output_dir, "greeting_bubble.png"))
     print("Saved: greeting_bubble.png")
-
-    # 2. Capture HUD
-    hud = SentiHud()
-    sample_data = {
-        "cpu": 38.0,
-        "ram": 54.0,
-        "ram_used_gb": 8.6,
-        "ram_total_gb": 15.9,
-        "disk": 68.0,
-        "disk_used_gb": 320.5,
-        "disk_free_gb": 150.2,
-        "disk_total_gb": 470.7,
-        "system_drive": "C:\\",
-        "temperature_c": None,  # Test honest None / Unavailable display
-        "battery": 85.0,
-        "battery_plugged": True,
-        "hostname": "SENTINEL-RIG",
-        "os": "Windows 10 (Build 19045)",
-        "processor": "Intel(R) Core(TM) i7-11800H @ 2.30GHz",
-        "logical_cores": 16,
-        "uptime_seconds": 18420,
-    }
-    hud.update_data(sample_data)
-    hud.show()
-    pix_hud = hud.grab()
-    hud.hide()
-    pix_hud.save(os.path.join(output_dir, "hud.png"))
-    print("Saved: hud.png")
 
     # 3. Capture Settings Window
     settings = SentiSettings()

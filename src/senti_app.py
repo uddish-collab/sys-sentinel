@@ -59,7 +59,6 @@ from senti_settings import (
 )
 from senti_sound import play_sound, play_pill_hover, play_pill_tick, ensure_sound_files
 from senti_mascot import SentiMascot, render_mascot_image
-from senti_hud import SentiHud
 from senti_control import SentiControlWindow
 from senti_dashboard import SentiDashboardWindow
 from senti_island import TopIslandWindow, GreetingBubbleWidget, DEFAULT_GREETINGS, TAB_CANONICAL, PILL_HIT_INDEX
@@ -111,7 +110,7 @@ class CompanionWindow(QWidget):
         self._press_pos = QPoint()
         self._window_start_pos = QPoint()
 
-        # Multi-click dispatcher (1 = HUD, 2 = Hide, 3 = Return to Island)
+        # Multi-click dispatcher (1 = Hide/Disappear, 2 = Return to Island)
         self._click_count = 0
         self._click_timer = QTimer(self)
         self._click_timer.setSingleShot(True)
@@ -225,8 +224,9 @@ class CompanionWindow(QWidget):
             self._click_count = 0
             self.mascot.trigger_squish()
             self.app_controller.play("click")
-            # 2 Clicks: Hide SENTI immediately without delay
-            self.fade_hide()
+            # 2 Clicks (Double tap): Return to Island
+            if not self.is_docked:
+                self.app_controller.return_to_island()
             event.accept()
 
     def mouseMoveEvent(self, event):
@@ -250,9 +250,6 @@ class CompanionWindow(QWidget):
                 if not self.is_docked:
                     self.settings.set_window_pos(new_pos)
 
-                # Follow SENTI: reposition HUD synchronously while dragging
-                if self.app_controller.hud.is_open():
-                    self.app_controller.hud.reposition_beside(self.geometry())
                 event.accept()
 
     def mouseReleaseEvent(self, event):
@@ -263,12 +260,12 @@ class CompanionWindow(QWidget):
                     self.app_controller.trigger_greeting_popup()
                 else:
                     self._click_count += 1
-                    if self._click_count >= 3:
+                    if self._click_count >= 2:
                         self._click_timer.stop()
                         self._click_count = 0
                         self.app_controller.return_to_island()
                     else:
-                        self._click_timer.start(160)
+                        self._click_timer.start(220)
             self._is_dragging = False
             event.accept()
 
@@ -277,12 +274,11 @@ class CompanionWindow(QWidget):
         self._click_count = 0
 
         if count == 1:
-            if self.is_orb:
-                self.restore_from_orb()
-            else:
-                self.app_controller.toggle_hud()
-        elif count >= 3:
-            self.app_controller.return_to_island()
+            # 1 Click (Single tap): Disappear
+            self.fade_hide()
+        elif count >= 2:
+            if not self.is_docked:
+                self.app_controller.return_to_island()
 
     # --- Shrink / Restore Morphing (Orb) ---
 
@@ -292,8 +288,6 @@ class CompanionWindow(QWidget):
         self.is_orb = True
         self.settings.set_orb_state(True)
         self.app_controller.play("shrink")
-        if self.app_controller.hud.is_open():
-            self.app_controller.hud.close_hud()
         self._animate_orb_morph(target_size=ORB_SIZE, target_orb_prop=1.0)
 
     def restore_from_orb(self):
@@ -379,6 +373,8 @@ class CompanionWindow(QWidget):
         self.show()
         self.raise_()
         self.app_controller.play("show")
+        if hasattr(self.app_controller, "act_tray_toggle"):
+            self.app_controller.act_tray_toggle.setText("Hide SENTI")
         self._fade_anim.stop()
         self._fade_anim.setStartValue(self._opacity_effect.opacity())
         self._fade_anim.setEndValue(1.0)
@@ -386,9 +382,6 @@ class CompanionWindow(QWidget):
 
     def fade_hide(self):
         self.app_controller.play("hide")
-        if self.app_controller.hud.is_open():
-            self.app_controller.hud.close_hud()
-
         self._fade_anim.stop()
         self._fade_anim.setStartValue(self._opacity_effect.opacity())
         self._fade_anim.setEndValue(0.0)
@@ -399,6 +392,8 @@ class CompanionWindow(QWidget):
                 self._fade_anim.finished.disconnect(_on_done)
             except Exception:
                 pass
+            if hasattr(self.app_controller, "act_tray_toggle"):
+                self.app_controller.act_tray_toggle.setText("Show SENTI")
 
         self._fade_anim.finished.connect(_on_done)
         self._fade_anim.start()
@@ -408,15 +403,9 @@ class CompanionWindow(QWidget):
     def _show_context_menu(self, global_pos: QPoint):
         menu = QMenu(self)
 
-        # HUD Toggle
-        hud_open = self.app_controller.hud.is_open()
-        act_hud = QAction("Close HUD" if hud_open else "Open HUD", self)
-        act_hud.triggered.connect(self.app_controller.toggle_hud)
-        menu.addAction(act_hud)
-
-        # Return to Island (if undocked)
+        # Return to Island (if undocked, double-click)
         if not self.is_docked:
-            act_dock = QAction("Return to Top Island", self)
+            act_dock = QAction("Return to Island (Double-click)", self)
             act_dock.triggered.connect(self.app_controller.return_to_island)
             menu.addAction(act_dock)
 
@@ -436,7 +425,7 @@ class CompanionWindow(QWidget):
         menu.addAction(act_control)
 
         # Hide
-        act_hide = QAction("Hide SENTI (Double-click)", self)
+        act_hide = QAction("Hide SENTI (Single-click)", self)
         act_hide.triggered.connect(self.fade_hide)
         menu.addAction(act_hide)
 
@@ -474,7 +463,6 @@ class SentiApp:
         # 1. Create Minimalist Solid Dark Top Island
         self.island = TopIslandWindow(
             on_drag_moved=self._on_island_drag_moved,
-            on_toggle_hud=self.toggle_hud,
             on_trigger_greeting=self.trigger_greeting_popup,
             on_refresh=self._on_manual_refresh,
             on_toggle_sound=self.toggle_sound,
@@ -495,10 +483,7 @@ class SentiApp:
         self.companion.is_docked = True
         self.settings.set_docked_state(True)
 
-        # 4. Create Compact HUD
-        self.hud = SentiHud(on_open_control=None)
-
-        # 5. Create Dedicated Subsystem Telemetry Dashboard (includes Settings panel)
+        # 4. Create Dedicated Subsystem Telemetry Dashboard (includes Settings panel)
         self.dashboard = SentiDashboardWindow(
             settings=self.settings,
             on_colors_changed=self.on_palette_changed,
@@ -534,10 +519,6 @@ class SentiApp:
         self.act_tray_toggle = QAction("Hide SENTI", menu)
         self.act_tray_toggle.triggered.connect(self.toggle_companion_visibility)
         menu.addAction(self.act_tray_toggle)
-
-        act_hud = QAction("Open HUD", menu)
-        act_hud.triggered.connect(self.toggle_hud)
-        menu.addAction(act_hud)
 
         act_island = QAction("Return to Top Island", menu)
         act_island.triggered.connect(self.return_to_island)
@@ -577,14 +558,6 @@ class SentiApp:
                 self.island.fade_in()
             self.act_tray_toggle.setText("Hide SENTI")
 
-    def toggle_hud(self):
-        if self.hud.is_open():
-            self.play("close")
-            self.hud.close_hud()
-        else:
-            self.play("open")
-            self.hud.open_hud(self.companion.geometry())
-
     def undock_from_island(self):
         """Called when SENTI is dragged out of the top island."""
         if not self.companion.is_docked:
@@ -606,16 +579,12 @@ class SentiApp:
         self.play("pop")
 
     def return_to_island(self):
-        """Triple-click on SENTI: Senti glides to dock, plays attach, and pills cascade in."""
+        """Double-click on SENTI: Senti glides to dock, plays attach, and pills cascade in."""
         self.companion.is_docked = True
         self.settings.set_docked_state(True)
 
         # Island fades back in
         self.island.fade_in()
-
-        # If HUD is open, close it
-        if self.hud.is_open():
-            self.hud.close_hud()
 
         # Target dock position and size
         dock_pos = self.island.get_dock_target_pos(DOCKED_SIZE)
@@ -746,10 +715,6 @@ class SentiApp:
 
         # Update Island telemetry pills
         self.island.update_telemetry(info)
-
-        # Update HUD if visible
-        if self.hud.isVisible():
-            self.hud.update_data(info)
 
         # Update Dedicated Telemetry Dashboard if visible
         if self.dashboard.isVisible():

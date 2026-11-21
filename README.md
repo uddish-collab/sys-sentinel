@@ -90,7 +90,6 @@ sys-sentinel/
 │   ├── senti_island.py      # Top Dynamic Island HUD overlay & telemetry pills
 │   ├── senti_dashboard.py   # Full 8-tab subsystem monitor & analytics dashboard
 │   ├── senti_control.py     # Quick settings & companion control flyout
-│   ├── senti_hud.py         # HUD status cards & telemetry overlays
 │   ├── senti_widgets.py     # Reusable custom UI components (meters, graphs, bars)
 │   ├── senti_sound.py       # Procedural audio effects & sound feedback engine
 │   ├── senti_settings.py    # Persistent app settings & user configurations

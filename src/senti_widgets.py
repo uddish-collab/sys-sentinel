@@ -24,7 +24,7 @@ from PySide6.QtWidgets import (
 
 
 DARK_THEME_QSS = """
-QWidget#hudRoot, QWidget#controlRoot {
+QWidget#controlRoot {
     background-color: #0b1020;
     border: 1px solid #1f2f4d;
     border-radius: 12px;

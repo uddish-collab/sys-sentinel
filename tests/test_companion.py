@@ -39,7 +39,6 @@ class TestCompanionAndIsland(unittest.TestCase):
         # Clean up
         companion.close()
         controller.island.close()
-        controller.hud.close()
         controller.dashboard.close()
         controller.control_win.close()
 
@@ -63,6 +62,41 @@ class TestCompanionAndIsland(unittest.TestCase):
         self.assertTrue(bubble.isVisible())
         bubble.fade_out()
         bubble.close()
+
+
+    def test_single_tap_hides_companion(self):
+        controller = SentiApp()
+        companion = controller.companion
+        companion.is_docked = False
+        companion.show()
+
+        # Simulate 1 tap dispatch
+        companion._click_count = 1
+        companion._dispatch_clicks()
+
+        # Should initiate fade hide
+        self.assertEqual(companion._click_count, 0)
+        companion.close()
+        controller.island.close()
+        controller.dashboard.close()
+        controller.control_win.close()
+
+    def test_double_tap_returns_to_island(self):
+        controller = SentiApp()
+        companion = controller.companion
+        companion.is_docked = False
+        companion.show()
+
+        # Simulate 2 taps dispatch
+        companion._click_count = 2
+        companion._dispatch_clicks()
+
+        # Should be docked back into the island
+        self.assertTrue(companion.is_docked)
+        companion.close()
+        controller.island.close()
+        controller.dashboard.close()
+        controller.control_win.close()
 
 
 if __name__ == "__main__":
