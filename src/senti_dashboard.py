@@ -4,18 +4,21 @@ Provides isolated, dedicated deep-dive panels for CPU, RAM, Storage,
 Thermals, GPU, Network, System, and Settings without mixing them.
 """
 
-from typing import Optional, Dict, Any, List, Callable
+from typing import Optional, Dict, Any, List, Callable, Tuple
 from collections import deque
 import sys
+import math
 
 from PySide6.QtCore import (
     Qt,
     QRectF,
     QPointF,
     QTimer,
+    Property,
     QPropertyAnimation,
     QEasingCurve,
     Signal,
+    QUrl,
 )
 from PySide6.QtGui import (
     QColor,
@@ -25,6 +28,8 @@ from PySide6.QtGui import (
     QPainterPath,
     QLinearGradient,
     QFont,
+    QDesktopServices,
+    QGuiApplication,
 )
 from PySide6.QtWidgets import (
     QWidget,
@@ -43,6 +48,14 @@ from PySide6.QtWidgets import (
 
 from senti_widgets import SmoothBar
 from senti_settings import SentiSettings, PRESET_THEMES, DEFAULT_COLORS
+try:
+    from src.senti_sound import play_sound
+except ImportError:
+    try:
+        from senti_sound import play_sound
+    except ImportError:
+        def play_sound(name: str, enabled: bool = True):
+            pass
 try:
     from src.senti_island import TAB_CANONICAL
 except ImportError:
@@ -146,8 +159,273 @@ class MiniSparkline(QWidget):
             p.end()
 
 
+THEME_DATA: List[Dict[str, Any]] = [
+    {
+        "name": "Cyberpunk Cyan",
+        "tag": "CYBERPUNK // CYAN",
+        "accent": "#00e5ff",
+        "desc": "Electric cyan optics & luminous high-contrast HUD",
+        "colors": [
+            ("BODY", "#f4f1ea"),
+            ("DETAILS", "#14213d"),
+            ("EYES", "#00e5ff"),
+            ("GLOW", "#00e5ff"),
+        ],
+    },
+    {
+        "name": "Stealth Obsidian",
+        "tag": "STEALTH // OBSIDIAN",
+        "accent": "#94a3b8",
+        "desc": "Ultra-dark obsidian surfaces with low-luminescence HUD",
+        "colors": [
+            ("BODY", "#181b22"),
+            ("DETAILS", "#07080a"),
+            ("EYES", "#00e5ff"),
+            ("GLOW", "#00e5ff"),
+        ],
+    },
+    {
+        "name": "Matrix Emerald",
+        "tag": "TERMINAL // EMERALD",
+        "accent": "#22c55e",
+        "desc": "Phosphor matrix aesthetics with phosphor trace glow",
+        "colors": [
+            ("BODY", "#121a14"),
+            ("DETAILS", "#060e08"),
+            ("EYES", "#22c55e"),
+            ("GLOW", "#10b981"),
+        ],
+    },
+    {
+        "name": "Solar Amber",
+        "tag": "CHRONO // SOLAR AMBER",
+        "accent": "#f5a524",
+        "desc": "Warm incandescent amber inspired by analog vacuum tubes",
+        "colors": [
+            ("BODY", "#201712"),
+            ("DETAILS", "#0c0805"),
+            ("EYES", "#f5a524"),
+            ("GLOW", "#ff7a00"),
+        ],
+    },
+    {
+        "name": "Synthwave Neon",
+        "tag": "SYNTHWAVE // NEON",
+        "accent": "#f43f5e",
+        "desc": "Hyper-saturated magenta and ultraviolet retrowave palette",
+        "colors": [
+            ("BODY", "#1a1226"),
+            ("DETAILS", "#0c0614"),
+            ("EYES", "#f43f5e"),
+            ("GLOW", "#a855f7"),
+        ],
+    },
+]
+
+
+class RotaryThemeDial(QWidget):
+    """Precision rotary theme selector knob with tactile graduation ticks and smooth snapping."""
+    themeChanged = Signal(int, str)
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setFixedSize(130, 130)
+        self.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._current_index = 0
+        self._angle = 150.0  # Angle in degrees (150° to 390°)
+        self._anim = QPropertyAnimation(self, b"dialAngle", self)
+        self._anim.setDuration(220)
+        self._anim.setEasingCurve(QEasingCurve.Type.OutCubic)
+        self._is_dragging = False
+
+    def get_dial_angle(self) -> float:
+        return self._angle
+
+    def set_dial_angle(self, val: float):
+        self._angle = val
+        self.update()
+
+    dialAngle = Property(float, get_dial_angle, set_dial_angle)
+
+    def _index_to_angle(self, idx: int) -> float:
+        return 150.0 + idx * 60.0
+
+    def set_theme_index(self, idx: int, animate: bool = True):
+        idx = max(0, min(len(THEME_DATA) - 1, idx))
+        if idx == self._current_index and not animate:
+            return
+        self._current_index = idx
+        target_a = self._index_to_angle(idx)
+        if animate:
+            self._anim.stop()
+            self._anim.setStartValue(self._angle)
+            self._anim.setEndValue(target_a)
+            self._anim.start()
+        else:
+            self._angle = target_a
+            self.update()
+        self.themeChanged.emit(idx, THEME_DATA[idx]["name"])
+
+    def current_theme(self) -> dict:
+        return THEME_DATA[self._current_index]
+
+    def mousePressEvent(self, event):
+        if event.button() == Qt.MouseButton.LeftButton:
+            self._is_dragging = True
+            self._handle_mouse(event.position())
+            event.accept()
+
+    def mouseMoveEvent(self, event):
+        if self._is_dragging:
+            self._handle_mouse(event.position())
+            event.accept()
+
+    def mouseReleaseEvent(self, event):
+        if event.button() == Qt.MouseButton.LeftButton:
+            self._is_dragging = False
+            event.accept()
+
+    def wheelEvent(self, event):
+        delta = event.angleDelta().y()
+        if delta > 0:
+            self.set_theme_index(self._current_index - 1)
+        elif delta < 0:
+            self.set_theme_index(self._current_index + 1)
+        event.accept()
+
+    def _handle_mouse(self, pos: QPointF):
+        cx, cy = self.width() / 2.0, self.height() / 2.0
+        dx = pos.x() - cx
+        dy = pos.y() - cy
+        rad = math.atan2(dy, dx)
+        deg = math.degrees(rad)
+        if deg < 0:
+            deg += 360.0
+
+        best_idx = 0
+        min_diff = 999.0
+        for i in range(5):
+            target = (150.0 + i * 60.0) % 360.0
+            diff = abs(deg - target)
+            diff = min(diff, 360.0 - diff)
+            if diff < min_diff:
+                min_diff = diff
+                best_idx = i
+        if best_idx != self._current_index:
+            self.set_theme_index(best_idx)
+
+    def paintEvent(self, event):
+        del event
+        p = QPainter()
+        if not p.begin(self):
+            return
+        try:
+            p.setRenderHint(QPainter.RenderHint.Antialiasing)
+            p.setRenderHint(QPainter.RenderHint.TextAntialiasing)
+            cx, cy = self.width() / 2.0, self.height() / 2.0
+            cur_theme = THEME_DATA[self._current_index]
+            accent_col = QColor(cur_theme["accent"])
+
+            outer_r = 46.0
+
+            # 1. Subtle Calibration Arc
+            arc_rect = QRectF(cx - outer_r, cy - outer_r, outer_r * 2, outer_r * 2)
+            p.setPen(QPen(QColor("#242730"), 1.2))
+            p.setBrush(Qt.BrushStyle.NoBrush)
+            p.drawArc(arc_rect, int(-150 * 16), int(-240 * 16))
+
+            # 2. Draw fine graduation tick marks
+            for deg in range(150, 395, 6):
+                rad = math.radians(deg)
+                is_major = (deg % 30 == 0)
+                t_in = 37.0 if not is_major else 34.0
+                t_out = 42.0
+                p1 = QPointF(cx + t_in * math.cos(rad), cy + t_in * math.sin(rad))
+                p2 = QPointF(cx + t_out * math.cos(rad), cy + t_out * math.sin(rad))
+                p.setPen(QPen(QColor("#272a33") if not is_major else QColor("#444b5c"), 1.0))
+                p.drawLine(p1, p2)
+
+            # 3. Draw 5 theme notch nodes & micro labels
+            f_num = QFont("Consolas", 7)
+            f_num.setBold(True)
+            p.setFont(f_num)
+
+            for i in range(5):
+                angle_deg = 150.0 + i * 60.0
+                rad = math.radians(angle_deg)
+                nx = cx + outer_r * math.cos(rad)
+                ny = cy + outer_r * math.sin(rad)
+                is_active = (i == self._current_index)
+
+                if is_active:
+                    glow = QColor(accent_col)
+                    glow.setAlpha(65)
+                    p.setPen(Qt.PenStyle.NoPen)
+                    p.setBrush(glow)
+                    p.drawEllipse(QPointF(nx, ny), 7.0, 7.0)
+
+                    p.setBrush(accent_col)
+                    p.setPen(QPen(QColor("#ffffff"), 1.2))
+                    p.drawEllipse(QPointF(nx, ny), 4.0, 4.0)
+                else:
+                    node_col = QColor(THEME_DATA[i]["accent"])
+                    p.setBrush(node_col)
+                    p.setPen(QPen(QColor("#111216"), 1.0))
+                    p.drawEllipse(QPointF(nx, ny), 2.8, 2.8)
+
+                # Micro numbering outside notches
+                num_r = outer_r + 13.0
+                lx = cx + num_r * math.cos(rad)
+                ly = cy + num_r * math.sin(rad)
+                p.setPen(accent_col if is_active else QColor("#52525b"))
+                p.drawText(QRectF(lx - 10, ly - 6, 20, 12), Qt.AlignmentFlag.AlignCenter, f"0{i+1}")
+
+            # 4. Rotary Knob Outer Bezel
+            knob_r = 29.0
+            knob_rect = QRectF(cx - knob_r, cy - knob_r, knob_r * 2, knob_r * 2)
+
+            grad = QLinearGradient(cx - knob_r, cy - knob_r, cx + knob_r, cy + knob_r)
+            grad.setColorAt(0.0, QColor("#22252c"))
+            grad.setColorAt(0.5, QColor("#14161b"))
+            grad.setColorAt(1.0, QColor("#0c0d10"))
+
+            p.setBrush(grad)
+            p.setPen(QPen(QColor("#313642"), 1.2))
+            p.drawEllipse(knob_rect)
+
+            # 5. Inner Machined Texture Ring
+            mach_r = 21.0
+            mach_rect = QRectF(cx - mach_r, cy - mach_r, mach_r * 2, mach_r * 2)
+            p.setBrush(QColor("#0d0e12"))
+            p.setPen(QPen(QColor("#1e222b"), 1.0))
+            p.drawEllipse(mach_rect)
+
+            # 6. Dial Indicator Needle
+            a_rad = math.radians(self._angle)
+            needle_len = 25.0
+            n_tip = QPointF(cx + needle_len * math.cos(a_rad), cy + needle_len * math.sin(a_rad))
+            n_base = QPointF(cx + 6.0 * math.cos(a_rad), cy + 6.0 * math.sin(a_rad))
+
+            n_pen = QPen(QColor("#f4f4f5"), 2.0)
+            n_pen.setCapStyle(Qt.PenCapStyle.RoundCap)
+            p.setPen(n_pen)
+            p.drawLine(n_base, n_tip)
+
+            # 7. Center Glowing Hub Cap
+            p.setPen(QPen(QColor("#2d3340"), 1.0))
+            p.setBrush(QColor("#16181f"))
+            p.drawEllipse(QPointF(cx, cy), 5.5, 5.5)
+
+            p.setPen(Qt.PenStyle.NoPen)
+            p.setBrush(accent_col)
+            p.drawEllipse(QPointF(cx, cy), 2.2, 2.2)
+
+        finally:
+            p.end()
+
+
 class SettingsTabCanvas(QWidget):
-    """Clean, minimalist settings canvas with delicate glowing corner accents."""
+    """Clean, minimalist dark matte canvas matching all other subsystem panels."""
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setStyleSheet("background: transparent;")
@@ -160,36 +438,9 @@ class SettingsTabCanvas(QWidget):
         try:
             p.setRenderHint(QPainter.RenderHint.Antialiasing)
             rect = QRectF(1.5, 1.5, self.width() - 3.0, self.height() - 3.0)
-
-            # Clean dark background matching other subsystem panels
-            p.setPen(Qt.PenStyle.NoPen)
-            p.setBrush(QColor("#111317"))
+            p.setPen(QPen(QColor("#1f2229"), 1.0))
+            p.setBrush(QColor("#0d0e12"))
             p.drawRoundedRect(rect, 8.0, 8.0)
-
-            # Soft subtle corner glow passes
-            for i in range(3, 0, -1):
-                alpha = int(12 * (4 - i))
-                p.setPen(QPen(QColor(56, 189, 248, alpha), 1.0 + i * 1.5))
-                p.setBrush(Qt.BrushStyle.NoBrush)
-                p.drawRoundedRect(rect, 8.0, 8.0)
-
-            # Hairline inner border
-            p.setPen(QPen(QColor(56, 189, 248, 80), 1.0))
-            p.drawRoundedRect(rect, 8.0, 8.0)
-
-            # High-precision glowing corner arcs
-            c_pen = QPen(QColor(56, 189, 248, 220), 1.8)
-            c_pen.setCapStyle(Qt.PenCapStyle.RoundCap)
-            p.setPen(c_pen)
-            arc_d = 22.0
-            # Top-Left
-            p.drawArc(QRectF(1.5, 1.5, arc_d, arc_d), 90 * 16, 90 * 16)
-            # Top-Right
-            p.drawArc(QRectF(self.width() - 1.5 - arc_d, 1.5, arc_d, arc_d), 0 * 16, 90 * 16)
-            # Bottom-Left
-            p.drawArc(QRectF(1.5, self.height() - 1.5 - arc_d, arc_d, arc_d), 180 * 16, 90 * 16)
-            # Bottom-Right
-            p.drawArc(QRectF(self.width() - 1.5 - arc_d, self.height() - 1.5 - arc_d, arc_d, arc_d), 270 * 16, 90 * 16)
         finally:
             p.end()
 
@@ -217,7 +468,7 @@ class SentiDashboardWindow(QWidget):
 
         self.setWindowTitle("Sentinel — System Telemetry")
         self.setObjectName("dashboardRoot")
-        self.setFixedSize(720, 520)
+        self.setFixedSize(720, 570)
 
         self.setWindowFlags(
             Qt.WindowType.Window
@@ -777,12 +1028,291 @@ class SentiDashboardWindow(QWidget):
         lay.addStretch()
         return w
 
-    # --- TAB 8: SETTINGS & WORKSTATION INTELLIGENCE ---
+    # --- TAB 8: SETTINGS & WORKSTATION CONFIGURATION ---
     def _build_settings_tab(self) -> QWidget:
-        w = SettingsTabCanvas()
-        root_lay = QVBoxLayout(w)
-        root_lay.setContentsMargins(18, 16, 18, 14)
-        root_lay.addStretch()
+        w = QWidget()
+        lay = QVBoxLayout(w)
+        lay.setContentsMargins(14, 14, 14, 14)
+        lay.setSpacing(12)
+
+        # -------------------------------------------------------------
+        # CARD 1: AUTHOR & REPOSITORY (MATCHES OTHER TABS)
+        # -------------------------------------------------------------
+        c1 = QFrame()
+        c1.setStyleSheet("""
+            QFrame {
+                background: #0d0e14;
+                border: 1px solid #1c2028;
+                border-radius: 6px;
+            }
+            QLabel {
+                border: none;
+                background: transparent;
+            }
+        """)
+        c1_lay = QVBoxLayout(c1)
+        c1_lay.setContentsMargins(16, 14, 16, 14)
+        c1_lay.setSpacing(12)
+
+        lbl_c1_header = QLabel("AUTHOR & REPOSITORY")
+        lbl_c1_header.setStyleSheet("color: #8c9dbd; font-size: 11px; font-weight: 700; letter-spacing: 0.5px;")
+        c1_lay.addWidget(lbl_c1_header)
+
+        row1 = QHBoxLayout()
+        row1.setSpacing(18)
+
+        # Left: Professional Maintainer Details (Unboxed, Minimalist Typography)
+        left_meta = QVBoxLayout()
+        left_meta.setSpacing(8)
+
+        name_row = QHBoxLayout()
+        name_row.setSpacing(10)
+
+        lbl_username = QLabel("uddish-collab")
+        lbl_username.setStyleSheet("color: #f8fafc; font-size: 16px; font-weight: 800; font-family: 'Segoe UI', Consolas;")
+        name_row.addWidget(lbl_username)
+
+        lbl_role_tag = QLabel("●  LEAD ARCHITECT & CREATOR")
+        lbl_role_tag.setStyleSheet("color: #64748b; font-size: 10px; font-weight: 700; letter-spacing: 0.8px;")
+        name_row.addWidget(lbl_role_tag)
+        name_row.addStretch()
+        left_meta.addLayout(name_row)
+
+        specs_grid = QGridLayout()
+        specs_grid.setHorizontalSpacing(10)
+        specs_grid.setVerticalSpacing(5)
+
+        def _spec_row(r: int, label: str, val_widget: QWidget):
+            l = QLabel(label)
+            l.setStyleSheet("color: #64748b; font-size: 10px; font-weight: 700;")
+            specs_grid.addWidget(l, r, 0)
+            specs_grid.addWidget(val_widget, r, 1)
+
+        p_lbl = QLabel("SYS-SENTINEL Desktop Workstation Companion")
+        p_lbl.setStyleSheet("color: #cbd5e1; font-size: 10.5px; font-weight: 600;")
+        _spec_row(0, "PROJECT", p_lbl)
+
+        f_lbl = QLabel("Python 3.10+ · Qt6 / PySide6 Engine")
+        f_lbl.setStyleSheet("color: #cbd5e1; font-size: 10.5px; font-weight: 600;")
+        _spec_row(1, "FRAMEWORK", f_lbl)
+
+        t_lbl = QLabel("Zero-Latency Real-Time Hardware Diagnostics")
+        t_lbl.setStyleSheet("color: #cbd5e1; font-size: 10.5px; font-weight: 600;")
+        _spec_row(2, "TELEMETRY", t_lbl)
+
+        # Repository - Clickable & Copyable Link
+        repo_box = QHBoxLayout()
+        repo_box.setContentsMargins(0, 0, 0, 0)
+        repo_box.setSpacing(8)
+        repo_link = QLabel(
+            "<a href='https://github.com/uddish-collab/sys-sentinel' "
+            "style='color: #38bdf8; text-decoration: none; font-weight: 600;'>"
+            "github.com/uddish-collab/sys-sentinel</a>"
+        )
+        repo_link.setOpenExternalLinks(True)
+        repo_link.setTextInteractionFlags(Qt.TextInteractionFlag.TextBrowserInteraction)
+        repo_link.setStyleSheet("font-size: 10px;")
+
+        btn_copy = QPushButton("COPY")
+        btn_copy.setFixedSize(40, 18)
+        btn_copy.setCursor(Qt.CursorShape.PointingHandCursor)
+        btn_copy.setStyleSheet("""
+            QPushButton {
+                background: #161922;
+                color: #8c9dbd;
+                font-size: 9px;
+                font-weight: 700;
+                border: 1px solid #242938;
+                border-radius: 3px;
+            }
+            QPushButton:hover {
+                background: #202534;
+                color: #f8fafc;
+                border: 1px solid #38bdf8;
+            }
+        """)
+
+        def _copy_repo():
+            QGuiApplication.clipboard().setText("https://github.com/uddish-collab/sys-sentinel")
+            btn_copy.setText("COPIED!")
+            btn_copy.setStyleSheet("background: #14281c; color: #22c55e; font-size: 9px; font-weight: 700; border: 1px solid #22c55e; border-radius: 3px;")
+            QTimer.singleShot(1500, lambda: [
+                btn_copy.setText("COPY"),
+                btn_copy.setStyleSheet("""
+                    QPushButton {
+                        background: #161922;
+                        color: #8c9dbd;
+                        font-size: 9px;
+                        font-weight: 700;
+                        border: 1px solid #242938;
+                        border-radius: 3px;
+                    }
+                    QPushButton:hover {
+                        background: #202534;
+                        color: #f8fafc;
+                        border: 1px solid #38bdf8;
+                    }
+                """)
+            ])
+        btn_copy.clicked.connect(_copy_repo)
+
+        repo_box.addWidget(repo_link)
+        repo_box.addWidget(btn_copy)
+        repo_box.addStretch()
+
+        repo_w = QWidget()
+        repo_w.setLayout(repo_box)
+        _spec_row(3, "REPOSITORY", repo_w)
+
+        left_meta.addLayout(specs_grid)
+        row1.addLayout(left_meta, 1)
+
+        # Right: Notepadish License Card - Sleek, authentic parchment / document look
+        notepad = QFrame()
+        notepad.setFixedWidth(246)
+        notepad.setStyleSheet("""
+            QFrame {
+                background: #090a0e;
+                border: 1px solid #1c212c;
+                border-left: 3px solid #475569;
+                border-radius: 4px;
+            }
+        """)
+        np_lay = QVBoxLayout(notepad)
+        np_lay.setContentsMargins(12, 10, 12, 10)
+        np_lay.setSpacing(6)
+
+        np_head = QHBoxLayout()
+        lbl_np_title = QLabel("LICENSE.txt")
+        lbl_np_title.setStyleSheet("color: #94a3b8; font-size: 10px; font-weight: 700; letter-spacing: 0.5px; font-family: Consolas;")
+        lbl_np_badge = QLabel("MIT · PERMISSIVE")
+        lbl_np_badge.setStyleSheet("color: #22c55e; font-size: 9px; font-weight: 700; letter-spacing: 0.5px;")
+        np_head.addWidget(lbl_np_title)
+        np_head.addStretch()
+        np_head.addWidget(lbl_np_badge)
+        np_lay.addLayout(np_head)
+
+        np_div = QFrame()
+        np_div.setFixedHeight(1)
+        np_div.setStyleSheet("background: #161922; border: none;")
+        np_lay.addWidget(np_div)
+
+        lbl_np_body = QLabel(
+            "Copyright (c) 2026 uddish-collab\n\n"
+            "Permission is hereby granted, free of charge, to any person "
+            "obtaining a copy of this software and associated documentation, "
+            "to deal without restriction, including rights to use, copy, "
+            "modify, merge, publish, and distribute."
+        )
+        lbl_np_body.setWordWrap(True)
+        lbl_np_body.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+        lbl_np_body.setStyleSheet("color: #64748b; font-size: 9px; font-family: Consolas, 'Courier New'; line-height: 125%;")
+        np_lay.addWidget(lbl_np_body)
+
+        row1.addWidget(notepad)
+        c1_lay.addLayout(row1)
+        lay.addWidget(c1)
+
+        # -------------------------------------------------------------
+        # CARD 2: THEME ROTARY DIAL (MINIMALIST, ZERO PALETTE FLUFF)
+        # -------------------------------------------------------------
+        c2 = QFrame()
+        c2.setStyleSheet("""
+            QFrame {
+                background: #0d0e14;
+                border: 1px solid #1c2028;
+                border-radius: 6px;
+            }
+            QLabel {
+                border: none;
+                background: transparent;
+            }
+        """)
+        c2_lay = QVBoxLayout(c2)
+        c2_lay.setContentsMargins(16, 14, 16, 14)
+        c2_lay.setSpacing(12)
+
+        lbl_c2_header = QLabel("WORKSTATION THEME MATRIX")
+        lbl_c2_header.setStyleSheet("color: #8c9dbd; font-size: 11px; font-weight: 700; letter-spacing: 0.5px;")
+        c2_lay.addWidget(lbl_c2_header)
+
+        dial_row = QHBoxLayout()
+        dial_row.setSpacing(24)
+
+        # 1. Rotary Dial
+        dial = RotaryThemeDial()
+
+        init_idx = 0
+        cur_eyes = self.settings.get_color("eyes").name().lower()
+        for i, t in enumerate(THEME_DATA):
+            if t["colors"][2][1].lower() == cur_eyes:
+                init_idx = i
+                break
+
+        dial.set_theme_index(init_idx, animate=False)
+        dial_row.addWidget(dial)
+
+        # 2. Information & Controls (Only Channel, Colored Theme Name, and Buttons)
+        info_col = QVBoxLayout()
+        info_col.setSpacing(8)
+
+        lbl_ch = QLabel(f"CHANNEL 0{init_idx + 1} / 0{len(THEME_DATA)}")
+        lbl_ch.setStyleSheet("color: #8c9dbd; font-size: 11px; font-weight: 700; letter-spacing: 1px;")
+        info_col.addWidget(lbl_ch)
+
+        cur_t = THEME_DATA[init_idx]
+        lbl_theme_name = QLabel(cur_t["name"].upper())
+        lbl_theme_name.setStyleSheet(f"color: {cur_t['accent']}; font-size: 22px; font-weight: 800; letter-spacing: 1px;")
+        info_col.addWidget(lbl_theme_name)
+
+        btn_row = QHBoxLayout()
+        btn_row.setSpacing(8)
+
+        btn_prev = QPushButton("◀  PREV THEME")
+        btn_next = QPushButton("NEXT THEME  ▶")
+        for b in (btn_prev, btn_next):
+            b.setFixedHeight(30)
+            b.setCursor(Qt.CursorShape.PointingHandCursor)
+            b.setStyleSheet("""
+                QPushButton {
+                    background: #141720;
+                    color: #8c9dbd;
+                    font-size: 10px;
+                    font-weight: 700;
+                    border: 1px solid #232836;
+                    border-radius: 4px;
+                    padding: 0px 14px;
+                }
+                QPushButton:hover {
+                    background: #1c212e;
+                    color: #f8fafc;
+                    border: 1px solid #384259;
+                }
+            """)
+        btn_prev.clicked.connect(lambda: dial.set_theme_index(dial._current_index - 1))
+        btn_next.clicked.connect(lambda: dial.set_theme_index(dial._current_index + 1))
+        btn_row.addWidget(btn_prev)
+        btn_row.addWidget(btn_next)
+        btn_row.addStretch()
+        info_col.addLayout(btn_row)
+
+        dial_row.addLayout(info_col, 1)
+        c2_lay.addLayout(dial_row)
+        lay.addWidget(c2)
+
+        lay.addStretch()
+
+        def on_dial(idx: int, tname: str):
+            t = THEME_DATA[idx]
+            lbl_ch.setText(f"CHANNEL 0{idx + 1} / 0{len(THEME_DATA)}")
+            lbl_theme_name.setText(tname.upper())
+            lbl_theme_name.setStyleSheet(f"color: {t['accent']}; font-size: 22px; font-weight: 800; letter-spacing: 1px;")
+            self.settings.apply_preset_theme(tname)
+            if self.on_colors_changed:
+                self.on_colors_changed()
+            play_sound(f"tick_{idx % 8}", enabled=self.settings.is_sound_enabled())
+
+        dial.themeChanged.connect(on_dial)
         return w
 
     # --- Telemetry Refresh Dispatcher ---
@@ -1045,10 +1575,10 @@ class SentiDashboardWindow(QWidget):
             "SYS": (6, "SYSTEM", "#10b981"),
             "BAT": (6, "SYSTEM", "#10b981"),
             "BATTERY": (6, "SYSTEM", "#10b981"),
-            "SETTINGS": (7, "SETTINGS", "#38bdf8"),
-            "SET": (7, "SETTINGS", "#38bdf8"),
-            "PREF": (7, "SETTINGS", "#38bdf8"),
-            "CONFIG": (7, "SETTINGS", "#38bdf8"),
+            "SETTINGS": (7, "SETTINGS", "#e2e8f0"),
+            "SET": (7, "SETTINGS", "#e2e8f0"),
+            "PREF": (7, "SETTINGS", "#e2e8f0"),
+            "CONFIG": (7, "SETTINGS", "#e2e8f0"),
         }
         normalized = tab_name.upper()
         info = name_map.get(normalized, (0, "CPU", "#22c55e"))
@@ -1061,23 +1591,14 @@ class SentiDashboardWindow(QWidget):
         self.lbl_title.setText(f"SENTINEL  ·  {title_text}")
         self.lbl_title.setStyleSheet(f"color: {accent_color}; font-size: 11px; font-weight: 700; letter-spacing: 2px;")
 
-        if self._active_tab_name == "SETTINGS":
-            self.tabs.setStyleSheet("""
-                QTabWidget::pane {
-                    border: none;
-                    background: transparent;
-                    top: 0px;
-                }
-            """)
-        else:
-            self.tabs.setStyleSheet("""
-                QTabWidget::pane {
-                    border: 1px solid #1c2028;
-                    border-radius: 8px;
-                    background: #111317;
-                    top: 0px;
-                }
-            """)
+        self.tabs.setStyleSheet("""
+            QTabWidget::pane {
+                border: 1px solid #1c2028;
+                border-radius: 8px;
+                background: #111317;
+                top: 0px;
+            }
+        """)
         self.update()
 
         if not self.isVisible() or self._opacity_effect.opacity() < 0.2:
@@ -1158,38 +1679,8 @@ class SentiDashboardWindow(QWidget):
         try:
             p.setRenderHint(QPainter.RenderHint.Antialiasing)
             rect = QRectF(1.0, 1.0, self.width() - 2.0, self.height() - 2.0)
-            is_settings = (getattr(self, "_active_tab_name", "") == "SETTINGS")
-
-            if is_settings:
-                # Soft ambient glow around corners/perimeter
-                for i in range(3, 0, -1):
-                    alpha = int(14 * (4 - i))
-                    p.setPen(QPen(QColor(56, 189, 248, alpha), 1.2 + i * 2.0))
-                    p.setBrush(Qt.BrushStyle.NoBrush)
-                    p.drawRoundedRect(rect, 14.0, 14.0)
-
-                # Base background and hairline border
-                p.setPen(QPen(QColor(56, 189, 248, 140), 1.2))
-                p.setBrush(QColor("#090a0d"))
-                p.drawRoundedRect(rect, 14.0, 14.0)
-
-                # High-precision glowing corner arcs
-                c_pen = QPen(QColor(56, 189, 248, 240), 2.0)
-                c_pen.setCapStyle(Qt.PenCapStyle.RoundCap)
-                p.setPen(c_pen)
-                p.setBrush(Qt.BrushStyle.NoBrush)
-                arc_d = 28.0
-                # Top-Left
-                p.drawArc(QRectF(1.0, 1.0, arc_d, arc_d), 90 * 16, 90 * 16)
-                # Top-Right
-                p.drawArc(QRectF(self.width() - 1.0 - arc_d, 1.0, arc_d, arc_d), 0 * 16, 90 * 16)
-                # Bottom-Left
-                p.drawArc(QRectF(1.0, self.height() - 1.0 - arc_d, arc_d, arc_d), 180 * 16, 90 * 16)
-                # Bottom-Right
-                p.drawArc(QRectF(self.width() - 1.0 - arc_d, self.height() - 1.0 - arc_d, arc_d, arc_d), 270 * 16, 90 * 16)
-            else:
-                p.setPen(QPen(QColor("#20242c"), 1.2))
-                p.setBrush(QColor("#090a0d"))
-                p.drawRoundedRect(rect, 14.0, 14.0)
+            p.setPen(QPen(QColor("#20242c"), 1.2))
+            p.setBrush(QColor("#090a0d"))
+            p.drawRoundedRect(rect, 14.0, 14.0)
         finally:
             p.end()
