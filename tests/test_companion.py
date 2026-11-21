@@ -88,6 +88,38 @@ class TestCompanionAndIsland(unittest.TestCase):
         controller.dashboard.close()
         controller.control_win.close()
 
+    def test_island_click_triggers_funny_expression_and_sound(self):
+        controller = SentiApp()
+        companion = controller.companion
+        companion.is_docked = True
+
+        # Test triggering funny expression on mascot
+        sound1 = companion.mascot.trigger_funny_expression()
+        self.assertIn(sound1, ["dizzy", "pop", "wink", "annoyed", "love"])
+        self.assertIsNotNone(companion.mascot._funny_expression)
+        self.assertGreater(companion.mascot._funny_time_remaining, 0.0)
+
+        # Cycle through all expressions
+        expressions_seen = [companion.mascot._funny_expression]
+        sounds_seen = [sound1]
+        for _ in range(4):
+            snd = companion.mascot.trigger_funny_expression()
+            sounds_seen.append(snd)
+            expressions_seen.append(companion.mascot._funny_expression)
+
+        self.assertEqual(len(set(expressions_seen)), 5)
+        self.assertEqual(len(set(sounds_seen)), 5)
+
+        # Reset expression
+        companion.mascot.reset_funny_expression()
+        self.assertIsNone(companion.mascot._funny_expression)
+        self.assertEqual(companion.mascot._funny_time_remaining, 0.0)
+
+        companion.close()
+        controller.island.close()
+        controller.dashboard.close()
+        controller.control_win.close()
+
 
 if __name__ == "__main__":
     unittest.main()

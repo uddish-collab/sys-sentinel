@@ -250,8 +250,10 @@ class CompanionWindow(QWidget):
         if event.button() == Qt.MouseButton.LeftButton:
             if not self._is_dragging:
                 if self.is_docked:
-                    # Inside island: Playful squish interaction, no popup messages
-                    self.mascot.trigger_squish()
+                    # Inside island: Trigger funny expression with matching authentic sound!
+                    sound_name = self.mascot.trigger_funny_expression()
+                    if self.app_controller:
+                        self.app_controller.play(sound_name)
                 else:
                     self._click_count += 1
                     if self._click_count >= 2:

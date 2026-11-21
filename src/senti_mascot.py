@@ -98,6 +98,17 @@ class SentiMascot(QWidget):
         self._target_wink_amount: float = 0.0
         self._pill_focus: Optional[str] = None
 
+        # Funny expression state (for island click interactions)
+        self._funny_expression: Optional[str] = None
+        self._funny_time_remaining: float = 0.0
+        self._funny_idx: int = 0
+        self._head_tilt: float = 0.0
+        self._target_head_tilt: float = 0.0
+        self._left_gaze_offset_x: float = 0.0
+        self._right_gaze_offset_x: float = 0.0
+        self._left_gaze_offset_y: float = 0.0
+        self._right_gaze_offset_y: float = 0.0
+
         # Base custom colors (provided by settings/controller)
         self.color_body = QColor("#f4f1ea")
         self.color_details = QColor("#14213d")
@@ -168,6 +179,103 @@ class SentiMascot(QWidget):
         self._wave_amount = 0.0
         self._wave_time_remaining = 0.0
         self.update()
+
+    def reset_funny_expression(self):
+        """Restore normal face expression after a funny interaction."""
+        self._funny_expression = None
+        self._funny_time_remaining = 0.0
+        self._target_head_tilt = 0.0
+        self._left_gaze_offset_x = 0.0
+        self._right_gaze_offset_x = 0.0
+        self._left_gaze_offset_y = 0.0
+        self._right_gaze_offset_y = 0.0
+        self._apply_mood_targets()
+        self.update()
+
+    def trigger_funny_expression(self) -> str:
+        """Trigger a hilarious face reaction when tapped inside the island dock.
+        
+        Cycles through playful expressions and returns the matching sound effect name.
+        """
+        expressions = ["derp", "shock", "wink", "annoyed", "love"]
+        expr = expressions[self._funny_idx % len(expressions)]
+        self._funny_idx += 1
+
+        self._funny_expression = expr
+        self._funny_time_remaining = 1.8  # lasts 1.8 seconds before smoothly springing back
+
+        sound_name = "pop"
+
+        if expr == "derp":
+            # 1. The Derp (Cross-eyed, goofy head tilt, bouncy squish)
+            self._target_eye_width = 1.15
+            self._target_eye_height = 0.95
+            self._target_brow_angle = -0.30
+            self._target_head_tilt = 12.0
+            self._left_gaze_offset_x = 0.90   # left eye looks right
+            self._right_gaze_offset_x = -0.90  # right eye looks left
+            self._left_gaze_offset_y = 0.15
+            self._right_gaze_offset_y = -0.15
+            self._target_wink_amount = 0.0
+            self._squish_scale = 0.82
+            sound_name = "dizzy"
+
+        elif expr == "shock":
+            # 2. Bug-Eyed Shock (O_O Startle)
+            self._target_eye_width = 1.55
+            self._target_eye_height = 1.50
+            self._target_brow_angle = 0.45
+            self._target_head_tilt = -3.0
+            self._left_gaze_offset_x = 0.0
+            self._right_gaze_offset_x = 0.0
+            self._left_gaze_offset_y = -0.25
+            self._right_gaze_offset_y = -0.25
+            self._target_wink_amount = 0.0
+            self._squish_scale = 0.76
+            sound_name = "pop"
+
+        elif expr == "wink":
+            # 3. Cheeky Wink & Smirk (with single paw wave)
+            self._target_eye_width = 1.25
+            self._target_eye_height = 1.10
+            self._target_brow_angle = 0.20
+            self._target_head_tilt = 6.0
+            self._left_gaze_offset_x = 0.20
+            self._right_gaze_offset_x = 0.20
+            self._target_wink_amount = 1.0
+            self._squish_scale = 0.85
+            self.trigger_greeting_wave(duration_s=1.4)
+            sound_name = "wink"
+
+        elif expr == "annoyed":
+            # 4. Annoyed / Sleepy Side-Eye
+            self._target_eye_width = 1.30
+            self._target_eye_height = 0.38
+            self._target_brow_angle = -0.25
+            self._target_head_tilt = -8.0
+            self._left_gaze_offset_x = -0.85
+            self._right_gaze_offset_x = -0.85
+            self._target_wink_amount = 0.0
+            self._squish_scale = 0.90
+            sound_name = "annoyed"
+
+        elif expr == "love":
+            # 5. Joyful Anime Squint (^ _ ^) with warm glow pulse
+            self._target_eye_width = 1.35
+            self._target_eye_height = 0.70
+            self._target_brow_angle = 0.30
+            self._target_head_tilt = 5.0
+            self._left_gaze_offset_x = 0.0
+            self._right_gaze_offset_x = 0.0
+            self._target_wink_amount = 0.0
+            self._squish_scale = 0.80
+            # Warm glowing rose-coral tint
+            self._tint_r, self._tint_g, self._tint_b = 255.0, 105.0, 180.0
+            self._target_tint_amount = 0.60
+            sound_name = "love"
+
+        self.update()
+        return sound_name
 
     def set_pill_hover_focus(self, pill_name: Optional[str], telemetry: Optional[dict] = None):
         """Dynamic eye tracking & expressive reaction when hovering over island pills."""
@@ -304,6 +412,13 @@ class SentiMascot(QWidget):
         self._gaze_x += (self._target_gaze_x - self._gaze_x) * 0.40
         self._gaze_y += (self._target_gaze_y - self._gaze_y) * 0.40
         self._wink_amount += (self._target_wink_amount - self._wink_amount) * 0.40
+        self._head_tilt += (self._target_head_tilt - self._head_tilt) * 0.35
+
+        # Funny expression timer
+        if self._funny_time_remaining > 0:
+            self._funny_time_remaining -= dt
+            if self._funny_time_remaining <= 0:
+                self.reset_funny_expression()
 
         # Waving hand timer
         if self._wave_time_remaining > 0:
@@ -395,6 +510,8 @@ class SentiMascot(QWidget):
         # Center with squish and shake
         p.save()
         p.translate(cx + shake_x, cy + bob + shake_y)
+        if abs(self._head_tilt) > 0.1:
+            p.rotate(self._head_tilt)
         p.scale(1.0 / self._squish_scale, self._squish_scale)
         p.translate(-cx, -cy)
 
@@ -538,44 +655,68 @@ class SentiMascot(QWidget):
         shift_x = self._gaze_x * (visor_w * 0.12)
         shift_y = self._gaze_y * (visor_h * 0.12)
 
-        left_eye_x = cx - eye_spacing + shift_x
-        right_eye_x = cx + eye_spacing + shift_x
-        gaze_center_y = eye_center_y + shift_y
+        left_shift_x = shift_x + self._left_gaze_offset_x * (visor_w * 0.12)
+        left_shift_y = shift_y + self._left_gaze_offset_y * (visor_h * 0.12)
+        right_shift_x = shift_x + self._right_gaze_offset_x * (visor_w * 0.12)
+        right_shift_y = shift_y + self._right_gaze_offset_y * (visor_h * 0.12)
+
+        left_eye_x = cx - eye_spacing + left_shift_x
+        right_eye_x = cx + eye_spacing + right_shift_x
+        left_eye_y = eye_center_y + left_shift_y
+        right_eye_y = eye_center_y + right_shift_y
+
+        # Joyful Anime Happy Eyes (^ _ ^)
+        if self._funny_expression == "love":
+            arc_w = max(6.0, eye_w * 1.30)
+            arc_h = max(5.0, base_h * 0.70)
+            p.setPen(QPen(eyes_c, max(2.2, eye_w * 0.35), Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap))
+            p.setBrush(Qt.BrushStyle.NoBrush)
+
+            left_arc = QPainterPath()
+            left_arc.moveTo(left_eye_x - arc_w / 2.0, left_eye_y + arc_h * 0.30)
+            left_arc.quadTo(left_eye_x, left_eye_y - arc_h * 0.65, left_eye_x + arc_w / 2.0, left_eye_y + arc_h * 0.30)
+            p.drawPath(left_arc)
+
+            right_arc = QPainterPath()
+            right_arc.moveTo(right_eye_x - arc_w / 2.0, right_eye_y + arc_h * 0.30)
+            right_arc.quadTo(right_eye_x, right_eye_y - arc_h * 0.65, right_eye_x + arc_w / 2.0, right_eye_y + arc_h * 0.30)
+            p.drawPath(right_arc)
+            return
 
         # Soft halo glow behind eyes
         halo_r = max(eye_w, base_h) * 1.4
         glow_alpha = int(55 * pulse)
-        for ex in (left_eye_x, right_eye_x):
-            halo = QRadialGradient(ex, gaze_center_y, halo_r)
+        for ex, ey in ((left_eye_x, left_eye_y), (right_eye_x, right_eye_y)):
+            halo = QRadialGradient(ex, ey, halo_r)
             halo.setColorAt(0.0, QColor(eyes_c.red(), eyes_c.green(), eyes_c.blue(), glow_alpha))
             halo.setColorAt(0.65, QColor(eyes_c.red(), eyes_c.green(), eyes_c.blue(), int(glow_alpha * 0.3)))
             halo.setColorAt(1.0, QColor(eyes_c.red(), eyes_c.green(), eyes_c.blue(), 0))
             p.setPen(Qt.PenStyle.NoPen)
             p.setBrush(halo)
-            p.drawEllipse(QPointF(ex, gaze_center_y), halo_r, halo_r)
+            p.drawEllipse(QPointF(ex, ey), halo_r, halo_r)
 
         # Solid Glowing Pill Eyes
         p.setBrush(eyes_c)
         er = eye_w / 2.0
 
         # Left eye
-        left_eye_rect = QRectF(left_eye_x - er, gaze_center_y - eye_h / 2.0, eye_w, eye_h)
+        left_eye_rect = QRectF(left_eye_x - er, left_eye_y - eye_h / 2.0, eye_w, eye_h)
         p.drawRoundedRect(left_eye_rect, er, er)
         if blink_factor > 0.6:
             spec_r = max(1.0, eye_w * 0.22)
             p.setBrush(QColor(255, 255, 255, 230))
-            p.drawEllipse(QPointF(left_eye_x - er * 0.3, gaze_center_y - eye_h * 0.25), spec_r, spec_r)
+            p.drawEllipse(QPointF(left_eye_x - er * 0.3, left_eye_y - eye_h * 0.25), spec_r, spec_r)
             p.setBrush(eyes_c)
 
         # Right eye (handles normal blink and playful wink)
         right_blink = blink_factor * max(0.12, 1.0 - self._wink_amount * 0.88)
         right_eye_h = max(1.8, base_h * right_blink)
-        right_eye_rect = QRectF(right_eye_x - er, gaze_center_y - right_eye_h / 2.0, eye_w, right_eye_h)
+        right_eye_rect = QRectF(right_eye_x - er, right_eye_y - right_eye_h / 2.0, eye_w, right_eye_h)
         p.drawRoundedRect(right_eye_rect, er, min(er, right_eye_h / 2.0))
         if right_blink > 0.6:
             spec_r = max(1.0, eye_w * 0.22)
             p.setBrush(QColor(255, 255, 255, 230))
-            p.drawEllipse(QPointF(right_eye_x - er * 0.3, gaze_center_y - right_eye_h * 0.25), spec_r, spec_r)
+            p.drawEllipse(QPointF(right_eye_x - er * 0.3, right_eye_y - right_eye_h * 0.25), spec_r, spec_r)
             p.setBrush(eyes_c)
 
     def _paint_orb(
