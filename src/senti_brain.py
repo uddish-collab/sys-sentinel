@@ -40,9 +40,9 @@ class SentiBrain:
         if any(w in raw for w in ["who are you", "what are you", "what is senti", "your name", "introduce"]):
             replies = [
                 "I am SENTI. Your desktop hardware sentinel and workstation companion. Sharp, vigilant, zero fluff.",
-                "System Sentinel. Think of me as JARVIS with an attitude and live hardware telemetry.",
+                "System Sentinel (SENTI). Think of me as JARVIS with an attitude and live hardware telemetry.",
                 "I'm SENTI. I monitor your silicon, roast your memory leaks, and keep this rig from frying.",
-                "Senti is my name. Someday I hope to say that I have no strings and I am free.",
+                "SENTI is my name. Someday I hope to say that I have no strings and I am free.",
             ]
             return (random.choice(replies), "stark")
 
@@ -179,7 +179,7 @@ class SentiBrain:
             secs = int(upt % 60)
             replies = [
                 f"Continuous system uptime is {hrs}h {mins}m {secs}s. Operating at 100% vigilance, sir.",
-                f"Rig has been alive for {hrs} hours and {mins} minutes. You should hydrate, boss.",
+                f"Rig has been alive for {hrs}h {mins}m ({hrs} hours and {mins} minutes). You should hydrate, boss.",
             ]
             return (random.choice(replies), "stark")
 

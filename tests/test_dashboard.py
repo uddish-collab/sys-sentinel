@@ -140,6 +140,20 @@ class TestDashboardAndSubsystems(unittest.TestCase):
         self.assertEqual(island._hit_test(QPoint(810, 86)), "pill_set")
         island.close()
 
+    def test_comm_link_chat_flush_on_close(self):
+        dash = SentiDashboardWindow()
+        dash.open_tab("SETTINGS")
+
+        # Simulate user writing into chat
+        dash.chat_log.append("<span>User test message</span>")
+        dash.comm_prompt_input.setText("Unsent draft")
+
+        # Close panel should flush chat
+        dash.close_panel()
+        self.assertNotIn("User test message", dash.chat_log.toPlainText())
+        self.assertEqual(dash.comm_prompt_input.text(), "")
+        dash.close()
+
 
 if __name__ == "__main__":
     unittest.main()

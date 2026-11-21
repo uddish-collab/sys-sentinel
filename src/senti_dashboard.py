@@ -1341,45 +1341,64 @@ class SentiDashboardWindow(QWidget):
         c3_head.addWidget(lbl_c3_status)
         c3_lay.addLayout(c3_head)
 
-        chat_log = QTextEdit()
-        chat_log.setReadOnly(True)
-        chat_log.setFixedHeight(75)
-        chat_log.setStyleSheet("""
+        self.chat_log = QTextEdit()
+        self.chat_log.setReadOnly(True)
+        self.chat_log.setFixedHeight(75)
+        self.chat_log.setStyleSheet("""
             QTextEdit {
                 background: #08090d;
                 border: 1px solid #1a1e28;
-                border-radius: 4px;
+                border-radius: 5px;
                 color: #cbd5e1;
                 font-family: Consolas, 'Segoe UI';
                 font-size: 10px;
                 padding: 6px;
-                line-height: 135%;
+                line-height: 140%;
             }
             QScrollBar:vertical {
-                background: #08090d;
-                width: 4px;
-                border: none;
+                background: #090b10;
+                width: 9px;
+                margin: 2px 2px 2px 0px;
+                border: 1px solid #141822;
+                border-radius: 4px;
             }
             QScrollBar::handle:vertical {
-                background: #252b3b;
-                border-radius: 2px;
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+                    stop:0 #222938, stop:0.4 #333e54, stop:0.7 #283144, stop:1 #1a202c);
+                border: 1px solid #3d4a66;
+                border-radius: 3px;
+                min-height: 22px;
+            }
+            QScrollBar::handle:vertical:hover {
+                background: qlineargradient(x1:0, y1:0, x2:1, y2:0,
+                    stop:0 #2c3a54, stop:0.5 #38bdf8, stop:1 #1e2c44);
+                border: 1px solid #38bdf8;
+            }
+            QScrollBar::handle:vertical:pressed {
+                background: #1e2636;
+                border: 1px solid #22c55e;
             }
             QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
                 height: 0px;
+                border: none;
+                background: none;
+            }
+            QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {
+                background: none;
             }
         """)
-        chat_log.setHtml(
+        self.chat_log.setHtml(
             "<span style='color: #38bdf8; font-weight: 700;'>SENTI:</span> "
             "<span style='color: #e2e8f0;'>All telemetry feeds green, sir. Ask me about your silicon, memory, or creator.</span>"
         )
-        c3_lay.addWidget(chat_log)
+        c3_lay.addWidget(self.chat_log)
 
         input_row = QHBoxLayout()
         input_row.setSpacing(6)
 
-        prompt_input = QLineEdit()
-        prompt_input.setPlaceholderText("Ask Senti about CPU, RAM, thermals, creator...")
-        prompt_input.setStyleSheet("""
+        self.comm_prompt_input = QLineEdit()
+        self.comm_prompt_input.setPlaceholderText("Ask Senti about CPU, RAM, thermals, creator...")
+        self.comm_prompt_input.setStyleSheet("""
             QLineEdit {
                 background: #141722;
                 border: 1px solid #23293a;
@@ -1419,23 +1438,23 @@ class SentiDashboardWindow(QWidget):
         """)
 
         def _send_msg():
-            text = prompt_input.text().strip()
+            text = self.comm_prompt_input.text().strip()
             if not text:
                 return
-            prompt_input.clear()
+            self.comm_prompt_input.clear()
             play_sound("click", enabled=self.settings.is_sound_enabled())
 
-            chat_log.append(f"<span style='color: #64748b; font-weight: 700;'>YOU:</span> <span style='color: #cbd5e1;'>{text}</span>")
+            self.chat_log.append(f"<span style='color: #64748b; font-weight: 700;'>YOU:</span> <span style='color: #cbd5e1;'>{text}</span>")
             reply, mood = self.brain.respond(text, self._telemetry)
 
             accent = "#38bdf8" if mood in ("calm", "stark") else ("#22c55e" if mood == "wink" else "#ef4444")
-            chat_log.append(f"<span style='color: {accent}; font-weight: 700;'>SENTI:</span> <span style='color: #f1f5f9;'>{reply}</span>")
-            chat_log.verticalScrollBar().setValue(chat_log.verticalScrollBar().maximum())
+            self.chat_log.append(f"<span style='color: {accent}; font-weight: 700;'>SENTI:</span> <span style='color: #f1f5f9;'>{reply}</span>")
+            self.chat_log.verticalScrollBar().setValue(self.chat_log.verticalScrollBar().maximum())
 
         btn_send.clicked.connect(_send_msg)
-        prompt_input.returnPressed.connect(_send_msg)
+        self.comm_prompt_input.returnPressed.connect(_send_msg)
 
-        input_row.addWidget(prompt_input, 1)
+        input_row.addWidget(self.comm_prompt_input, 1)
         input_row.addWidget(btn_send)
         c3_lay.addLayout(input_row)
 
@@ -1697,6 +1716,17 @@ class SentiDashboardWindow(QWidget):
             self.lbl_battery.setText("Battery: Desktop Workstation (AC Line Power)")
             self.bar_battery.set_value(100.0)
 
+    # --- Comm Link Chat Management ---
+    def flush_comm_link_chat(self):
+        """Purge Comm Link conversation history back to clean baseline greeting."""
+        if hasattr(self, "chat_log") and self.chat_log:
+            self.chat_log.setHtml(
+                "<span style='color: #38bdf8; font-weight: 700;'>SENTI:</span> "
+                "<span style='color: #e2e8f0;'>All telemetry feeds green, sir. Ask me about your silicon, memory, or creator.</span>"
+            )
+        if hasattr(self, "comm_prompt_input") and self.comm_prompt_input:
+            self.comm_prompt_input.clear()
+
     # --- Window Open / Dedicated Panel Navigation ---
     def open_tab(self, tab_name: str):
         """Open the dedicated window showing ONLY the requested tab. No other tabs appear."""
@@ -1721,6 +1751,9 @@ class SentiDashboardWindow(QWidget):
             "CONFIG": (7, "SETTINGS", "#e2e8f0"),
         }
         normalized = tab_name.upper()
+        if normalized not in ("SETTINGS", "SET", "PREF", "CONFIG"):
+            self.flush_comm_link_chat()
+
         info = name_map.get(normalized, (0, "CPU", "#22c55e"))
         idx, title_text, accent_color = info
 
@@ -1761,6 +1794,7 @@ class SentiDashboardWindow(QWidget):
 
     def close_panel(self):
         self._active_tab_name = None
+        self.flush_comm_link_chat()
         self.update()
         self.closed.emit()
         self._fade_anim.stop()
@@ -1779,12 +1813,14 @@ class SentiDashboardWindow(QWidget):
 
     def closeEvent(self, event):
         self._active_tab_name = None
+        self.flush_comm_link_chat()
         self.update()
         self.closed.emit()
         super().closeEvent(event)
 
     def hideEvent(self, event):
         self._active_tab_name = None
+        self.flush_comm_link_chat()
         self.update()
         self.closed.emit()
         super().hideEvent(event)
