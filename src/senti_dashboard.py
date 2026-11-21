@@ -1059,68 +1059,70 @@ class SentiDashboardWindow(QWidget):
         c1_lay.addWidget(lbl_c1_header)
 
         row1 = QHBoxLayout()
-        row1.setSpacing(18)
+        row1.setSpacing(16)
 
-        # Left: Professional Maintainer Details (Unboxed, Minimalist Typography)
+        # ---------------------------------------------------------
+        # LEFT COLUMN: AUTHOR & SPECIFICATIONS
+        # ---------------------------------------------------------
         left_meta = QVBoxLayout()
         left_meta.setSpacing(8)
 
         name_row = QHBoxLayout()
-        name_row.setSpacing(10)
-
+        name_row.setSpacing(8)
         lbl_username = QLabel("uddish-collab")
-        lbl_username.setStyleSheet("color: #f8fafc; font-size: 16px; font-weight: 800; font-family: 'Segoe UI', Consolas;")
+        lbl_username.setStyleSheet("color: #f8fafc; font-size: 15px; font-weight: 800; font-family: 'Segoe UI', Consolas;")
         name_row.addWidget(lbl_username)
 
         lbl_role_tag = QLabel("●  LEAD ARCHITECT & CREATOR")
-        lbl_role_tag.setStyleSheet("color: #64748b; font-size: 10px; font-weight: 700; letter-spacing: 0.8px;")
+        lbl_role_tag.setStyleSheet("color: #64748b; font-size: 9.5px; font-weight: 700; letter-spacing: 0.6px;")
         name_row.addWidget(lbl_role_tag)
         name_row.addStretch()
         left_meta.addLayout(name_row)
 
         specs_grid = QGridLayout()
         specs_grid.setHorizontalSpacing(10)
-        specs_grid.setVerticalSpacing(5)
+        specs_grid.setVerticalSpacing(4)
+        specs_grid.setColumnStretch(1, 1)
 
         def _spec_row(r: int, label: str, val_widget: QWidget):
             l = QLabel(label)
-            l.setStyleSheet("color: #64748b; font-size: 10px; font-weight: 700;")
+            l.setStyleSheet("color: #64748b; font-size: 9.5px; font-weight: 700;")
             specs_grid.addWidget(l, r, 0)
             specs_grid.addWidget(val_widget, r, 1)
 
         p_lbl = QLabel("SYS-SENTINEL Desktop Workstation Companion")
-        p_lbl.setStyleSheet("color: #cbd5e1; font-size: 10.5px; font-weight: 600;")
+        p_lbl.setStyleSheet("color: #cbd5e1; font-size: 10px; font-weight: 600;")
         _spec_row(0, "PROJECT", p_lbl)
 
         f_lbl = QLabel("Python 3.10+ · Qt6 / PySide6 Engine")
-        f_lbl.setStyleSheet("color: #cbd5e1; font-size: 10.5px; font-weight: 600;")
+        f_lbl.setStyleSheet("color: #cbd5e1; font-size: 10px; font-weight: 600;")
         _spec_row(1, "FRAMEWORK", f_lbl)
 
         t_lbl = QLabel("Zero-Latency Real-Time Hardware Diagnostics")
-        t_lbl.setStyleSheet("color: #cbd5e1; font-size: 10.5px; font-weight: 600;")
+        t_lbl.setStyleSheet("color: #cbd5e1; font-size: 10px; font-weight: 600;")
         _spec_row(2, "TELEMETRY", t_lbl)
 
-        # Repository - Clickable & Copyable Link
+        # Repository link + copy button
         repo_box = QHBoxLayout()
         repo_box.setContentsMargins(0, 0, 0, 0)
-        repo_box.setSpacing(8)
+        repo_box.setSpacing(6)
         repo_link = QLabel(
             "<a href='https://github.com/uddish-collab/sys-sentinel' "
             "style='color: #38bdf8; text-decoration: none; font-weight: 600;'>"
-            "github.com/uddish-collab/sys-sentinel</a>"
+            "github.com/uddish-collab/sys-sentinel ↗</a>"
         )
         repo_link.setOpenExternalLinks(True)
         repo_link.setTextInteractionFlags(Qt.TextInteractionFlag.TextBrowserInteraction)
         repo_link.setStyleSheet("font-size: 10px;")
 
         btn_copy = QPushButton("COPY")
-        btn_copy.setFixedSize(40, 18)
+        btn_copy.setFixedSize(38, 17)
         btn_copy.setCursor(Qt.CursorShape.PointingHandCursor)
         btn_copy.setStyleSheet("""
             QPushButton {
                 background: #161922;
                 color: #8c9dbd;
-                font-size: 9px;
+                font-size: 8.5px;
                 font-weight: 700;
                 border: 1px solid #242938;
                 border-radius: 3px;
@@ -1135,14 +1137,14 @@ class SentiDashboardWindow(QWidget):
         def _copy_repo():
             QGuiApplication.clipboard().setText("https://github.com/uddish-collab/sys-sentinel")
             btn_copy.setText("COPIED!")
-            btn_copy.setStyleSheet("background: #14281c; color: #22c55e; font-size: 9px; font-weight: 700; border: 1px solid #22c55e; border-radius: 3px;")
+            btn_copy.setStyleSheet("background: #14281c; color: #22c55e; font-size: 8.5px; font-weight: 700; border: 1px solid #22c55e; border-radius: 3px;")
             QTimer.singleShot(1500, lambda: [
                 btn_copy.setText("COPY"),
                 btn_copy.setStyleSheet("""
                     QPushButton {
                         background: #161922;
                         color: #8c9dbd;
-                        font-size: 9px;
+                        font-size: 8.5px;
                         font-weight: 700;
                         border: 1px solid #242938;
                         border-radius: 3px;
@@ -1165,51 +1167,53 @@ class SentiDashboardWindow(QWidget):
         _spec_row(3, "REPOSITORY", repo_w)
 
         left_meta.addLayout(specs_grid)
-        row1.addLayout(left_meta, 1)
+        row1.addLayout(left_meta, 5)
 
-        # Right: Notepadish License Card - Sleek, authentic parchment / document look
-        notepad = QFrame()
-        notepad.setFixedWidth(246)
-        notepad.setStyleSheet("""
-            QFrame {
-                background: #090a0e;
-                border: 1px solid #1c212c;
-                border-left: 3px solid #475569;
-                border-radius: 4px;
-            }
-        """)
-        np_lay = QVBoxLayout(notepad)
-        np_lay.setContentsMargins(12, 10, 12, 10)
-        np_lay.setSpacing(6)
+        # ---------------------------------------------------------
+        # VERTICAL HAIRLINE DIVIDER
+        # ---------------------------------------------------------
+        vdiv = QFrame()
+        vdiv.setFixedWidth(1)
+        vdiv.setStyleSheet("background: #1c2028; border: none;")
+        row1.addWidget(vdiv)
 
-        np_head = QHBoxLayout()
-        lbl_np_title = QLabel("LICENSE.txt")
-        lbl_np_title.setStyleSheet("color: #94a3b8; font-size: 10px; font-weight: 700; letter-spacing: 0.5px; font-family: Consolas;")
-        lbl_np_badge = QLabel("MIT · PERMISSIVE")
-        lbl_np_badge.setStyleSheet("color: #22c55e; font-size: 9px; font-weight: 700; letter-spacing: 0.5px;")
-        np_head.addWidget(lbl_np_title)
-        np_head.addStretch()
-        np_head.addWidget(lbl_np_badge)
-        np_lay.addLayout(np_head)
+        # ---------------------------------------------------------
+        # RIGHT COLUMN: LICENSE & PERMISSIONS (UNBOXED, MINIMALIST LUXURY)
+        # ---------------------------------------------------------
+        right_lic = QVBoxLayout()
+        right_lic.setSpacing(8)
 
-        np_div = QFrame()
-        np_div.setFixedHeight(1)
-        np_div.setStyleSheet("background: #161922; border: none;")
-        np_lay.addWidget(np_div)
+        lic_head = QHBoxLayout()
+        lbl_lic_title = QLabel("LICENSE & PERMISSIONS")
+        lbl_lic_title.setStyleSheet("color: #8c9dbd; font-size: 10px; font-weight: 700; letter-spacing: 0.6px;")
+        lbl_lic_badge = QLabel("●  MIT PERMISSIVE")
+        lbl_lic_badge.setStyleSheet("color: #22c55e; font-size: 9px; font-weight: 700; letter-spacing: 0.5px;")
+        lic_head.addWidget(lbl_lic_title)
+        lic_head.addStretch()
+        lic_head.addWidget(lbl_lic_badge)
+        right_lic.addLayout(lic_head)
 
-        lbl_np_body = QLabel(
-            "Copyright (c) 2026 uddish-collab\n\n"
-            "Permission is hereby granted, free of charge, to any person "
-            "obtaining a copy of this software and associated documentation, "
-            "to deal without restriction, including rights to use, copy, "
-            "modify, merge, publish, and distribute."
-        )
-        lbl_np_body.setWordWrap(True)
-        lbl_np_body.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
-        lbl_np_body.setStyleSheet("color: #64748b; font-size: 9px; font-family: Consolas, 'Courier New'; line-height: 125%;")
-        np_lay.addWidget(lbl_np_body)
+        lic_grid = QGridLayout()
+        lic_grid.setHorizontalSpacing(10)
+        lic_grid.setVerticalSpacing(4)
+        lic_grid.setColumnStretch(1, 1)
 
-        row1.addWidget(notepad)
+        def _lic_row(r: int, label: str, val: str):
+            l = QLabel(label)
+            l.setStyleSheet("color: #64748b; font-size: 9.5px; font-weight: 700;")
+            v = QLabel(val)
+            v.setStyleSheet("color: #cbd5e1; font-size: 10px; font-weight: 600;")
+            lic_grid.addWidget(l, r, 0)
+            lic_grid.addWidget(v, r, 1)
+
+        _lic_row(0, "STANDARD", "MIT Open Source License")
+        _lic_row(1, "COPYRIGHT", "© 2026 uddish-collab")
+        _lic_row(2, "GRANT", "Use, modify, distribute, sublicense freely")
+        _lic_row(3, "WARRANTY", "Provided 'as is' without limitation")
+
+        right_lic.addLayout(lic_grid)
+        row1.addLayout(right_lic, 4)
+
         c1_lay.addLayout(row1)
         lay.addWidget(c1)
 
