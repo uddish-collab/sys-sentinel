@@ -1113,7 +1113,7 @@ class SentiDashboardWindow(QWidget):
         repo_link = QLabel(
             "<a href='https://github.com/uddish-collab/sys-sentinel' "
             "style='color: #38bdf8; text-decoration: none; font-weight: 600;'>"
-            "github.com/uddish-collab/sys-sentinel ↗</a>"
+            "github.com/uddish-collab/sys-sentinel</a>"
         )
         repo_link.setOpenExternalLinks(True)
         repo_link.setTextInteractionFlags(Qt.TextInteractionFlag.TextBrowserInteraction)
