@@ -62,7 +62,7 @@ from senti_mascot import SentiMascot, render_mascot_image
 from senti_hud import SentiHud
 from senti_control import SentiControlWindow
 from senti_dashboard import SentiDashboardWindow
-from senti_island import TopIslandWindow, GreetingBubbleWidget, DEFAULT_GREETINGS
+from senti_island import TopIslandWindow, GreetingBubbleWidget, DEFAULT_GREETINGS, TAB_CANONICAL
 from senti_hotkeys import (
     GlobalHotKeyManager,
     MOD_CONTROL,
@@ -509,6 +509,7 @@ class SentiApp:
             on_colors_changed=self.on_palette_changed,
             on_sound_toggled=self.on_sound_toggled,
         )
+        self.dashboard.closed.connect(self._on_dashboard_closed)
 
         # 6. Create Control / Settings Window
         self.control_win = SentiControlWindow(self.settings, self.history_map)
@@ -687,17 +688,34 @@ class SentiApp:
         self.greeting_bubble.show_greeting(word, target_pt)
         self.play("show")
 
+    def _on_dashboard_closed(self):
+        """Reset island active state when dashboard window closes."""
+        self.island.set_active_tab(None)
+
     def open_control_window(self):
         self.open_dashboard_tab("SETTINGS")
 
     def open_dashboard_tab(self, tab_name: str = "CPU"):
-        """Open the dedicated subsystem telemetry tab (CPU, RAM, STORAGE, THERMALS, etc.)."""
-        # Position dashboard cleanly below the island
+        """Activate or deactivate subsystem tab with toggle behavior and green dot tracking."""
+        canonical = TAB_CANONICAL.get(tab_name.upper(), tab_name.upper())
+
+        # Toggle: if dashboard is visible and currently showing this exact tab -> deactivate!
+        if self.dashboard.isVisible() and self.dashboard.get_active_tab() == canonical:
+            self.dashboard.close_panel()
+            self.island.set_active_tab(None)
+            self.play("close")
+            return
+
+        # Otherwise, activate this tab!
         isl_geo = self.island.geometry()
         x = max(10, isl_geo.center().x() - self.dashboard.width() // 2)
-        y = min(QApplication.primaryScreen().availableGeometry().bottom() - self.dashboard.height() - 10, isl_geo.bottom() + 10)
+        y = min(
+            QApplication.primaryScreen().availableGeometry().bottom() - self.dashboard.height() - 10,
+            isl_geo.bottom() + 10,
+        )
         self.dashboard.move(x, max(10, y))
-        self.dashboard.open_tab(tab_name)
+        self.dashboard.open_tab(canonical)
+        self.island.set_active_tab(canonical)
         # Immediate telemetry update
         self.dashboard.update_telemetry(get_system_info())
         self.play("show")

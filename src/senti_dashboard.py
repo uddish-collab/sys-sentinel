@@ -15,6 +15,7 @@ from PySide6.QtCore import (
     QTimer,
     QPropertyAnimation,
     QEasingCurve,
+    Signal,
 )
 from PySide6.QtGui import (
     QColor,
@@ -42,6 +43,11 @@ from PySide6.QtWidgets import (
 
 from senti_widgets import SmoothBar
 from senti_settings import SentiSettings, PRESET_THEMES, DEFAULT_COLORS
+try:
+    from src.senti_island import TAB_CANONICAL
+except ImportError:
+    from senti_island import TAB_CANONICAL
+
 
 
 class MiniSparkline(QWidget):
@@ -146,6 +152,8 @@ class SentiDashboardWindow(QWidget):
     Each pill opens only its dedicated subsystem view (CPU, RAM, DISK, TEMP, GPU, NET, SYS, SETTINGS).
     Features smooth cross-fade navigation and zero window blinking.
     """
+
+    closed = Signal()
 
     def __init__(
         self,
@@ -1259,7 +1267,7 @@ class SentiDashboardWindow(QWidget):
         info = name_map.get(normalized, (0, "CPU", "#22c55e"))
         idx, title_text, accent_color = info
 
-        self._active_tab_name = normalized
+        self._active_tab_name = TAB_CANONICAL.get(normalized, normalized)
 
         # Immediate, deterministic tab switch - synchronous, instant, rock-solid
         self.tabs.setCurrentIndex(idx)
@@ -1278,7 +1286,15 @@ class SentiDashboardWindow(QWidget):
             self.raise_()
             self.activateWindow()
 
+    def get_active_tab(self) -> Optional[str]:
+        """Return the canonical name of the active subsystem tab, or None if panel is hidden/closed."""
+        if not self.isVisible() or not getattr(self, "_active_tab_name", None):
+            return None
+        return self._active_tab_name
+
     def close_panel(self):
+        self._active_tab_name = None
+        self.closed.emit()
         self._fade_anim.stop()
         self._fade_anim.setStartValue(self._opacity_effect.opacity())
         self._fade_anim.setEndValue(0.0)
@@ -1292,6 +1308,16 @@ class SentiDashboardWindow(QWidget):
 
         self._fade_anim.finished.connect(_on_done)
         self._fade_anim.start()
+
+    def closeEvent(self, event):
+        self._active_tab_name = None
+        self.closed.emit()
+        super().closeEvent(event)
+
+    def hideEvent(self, event):
+        self._active_tab_name = None
+        self.closed.emit()
+        super().hideEvent(event)
 
     def keyPressEvent(self, event):
         if event.key() == Qt.Key.Key_Escape:

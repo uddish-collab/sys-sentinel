@@ -27,9 +27,11 @@ from PySide6.QtGui import (
     QPainter,
     QColor,
     QPen,
+    QBrush,
     QFont,
     QPainterPath,
     QLinearGradient,
+    QRadialGradient,
 )
 from PySide6.QtWidgets import (
     QWidget,
@@ -168,6 +170,29 @@ PILL_HIT_INDEX = {
     "pill_set": 7,
 }
 
+TAB_CANONICAL: Dict[str, str] = {
+    "CPU": "CPU",
+    "RAM": "RAM",
+    "MEMORY": "RAM",
+    "GPU": "GPU",
+    "NET": "NETWORK",
+    "NETWORK": "NETWORK",
+    "DISK": "STORAGE",
+    "STORAGE": "STORAGE",
+    "TEMP": "THERMALS",
+    "THERMALS": "THERMALS",
+    "TEMPERATURE": "THERMALS",
+    "SYS": "SYSTEM",
+    "BAT": "SYSTEM",
+    "BATTERY": "SYSTEM",
+    "SYSTEM": "SYSTEM",
+    "SET": "SETTINGS",
+    "SETTINGS": "SETTINGS",
+    "PREF": "SETTINGS",
+    "CONFIG": "SETTINGS",
+}
+
+
 
 class TopIslandWindow(QWidget):
     """Minimalist solid opaque desktop island matching Mochi reference exactly."""
@@ -231,6 +256,9 @@ class TopIslandWindow(QWidget):
         # Hover state
         self._hover_target: Optional[str] = None
         self.setMouseTracking(True)
+
+        # Active tab tracking (controls active pill green dot)
+        self._active_tab: Optional[str] = None
 
         # Smooth per-pill hover weights (0.0 = idle, 1.0 = fully hovered)
         self._hover_progress: List[float] = [0.0] * 8
@@ -512,6 +540,17 @@ class TopIslandWindow(QWidget):
 
         self._entrance_group.start()
 
+    def set_active_tab(self, tab_name: Optional[str]):
+        """Set the currently active subsystem tab and update the green indicator dot."""
+        canonical = TAB_CANONICAL.get(tab_name.upper(), tab_name.upper()) if tab_name else None
+        if self._active_tab != canonical:
+            self._active_tab = canonical
+            self.update()
+
+    def get_active_tab(self) -> Optional[str]:
+        """Return the canonical name of the currently active subsystem tab, if any."""
+        return self._active_tab
+
     def fade_in(self):
         self.show()
         self.raise_()
@@ -627,30 +666,38 @@ class TopIslandWindow(QWidget):
         # Row 1
         # Pill 1: CPU (Emerald #22c55e)
         self._paint_pill(p, col1_x, row1_y, pw, ph, QColor("#22c55e"), "CPU", f"{cpu_val:.0f}%",
-                         self._pill_scales[0], self._pill_alphas[0], self._hover_progress[0], dim_amount if self._hover_progress[0] < 0.5 else 0.0)
+                         self._pill_scales[0], self._pill_alphas[0], self._hover_progress[0], dim_amount if self._hover_progress[0] < 0.5 else 0.0,
+                         is_active=(self._active_tab == "CPU"))
         # Pill 2: RAM (Amber #f5a524)
         self._paint_pill(p, col2_x, row1_y, pw, ph, QColor("#f5a524"), "RAM", f"{ram_val:.0f}%",
-                         self._pill_scales[1], self._pill_alphas[1], self._hover_progress[1], dim_amount if self._hover_progress[1] < 0.5 else 0.0)
+                         self._pill_scales[1], self._pill_alphas[1], self._hover_progress[1], dim_amount if self._hover_progress[1] < 0.5 else 0.0,
+                         is_active=(self._active_tab == "RAM"))
         # Pill 3: GPU (Cyan #00e5ff)
         self._paint_pill(p, col3_x, row1_y, pw, ph, QColor("#00e5ff"), "GPU", f"{gpu_val:.0f}%",
-                         self._pill_scales[2], self._pill_alphas[2], self._hover_progress[2], dim_amount if self._hover_progress[2] < 0.5 else 0.0)
+                         self._pill_scales[2], self._pill_alphas[2], self._hover_progress[2], dim_amount if self._hover_progress[2] < 0.5 else 0.0,
+                         is_active=(self._active_tab == "GPU"))
         # Pill 4: NET (Violet #a855f7)
         self._paint_pill(p, col4_x, row1_y, pw, ph, QColor("#a855f7"), "NET", net_str,
-                         self._pill_scales[3], self._pill_alphas[3], self._hover_progress[3], dim_amount if self._hover_progress[3] < 0.5 else 0.0)
+                         self._pill_scales[3], self._pill_alphas[3], self._hover_progress[3], dim_amount if self._hover_progress[3] < 0.5 else 0.0,
+                         is_active=(self._active_tab == "NETWORK"))
 
         # Row 2
         # Pill 5: DISK (Indigo #6366f1)
         self._paint_pill(p, col1_x, row2_y, pw, ph, QColor("#6366f1"), "DISK", f"{disk_val:.0f}%",
-                         self._pill_scales[4], self._pill_alphas[4], self._hover_progress[4], dim_amount if self._hover_progress[4] < 0.5 else 0.0)
+                         self._pill_scales[4], self._pill_alphas[4], self._hover_progress[4], dim_amount if self._hover_progress[4] < 0.5 else 0.0,
+                         is_active=(self._active_tab == "STORAGE"))
         # Pill 6: TEMP (Red/Rose #f4505e)
         self._paint_pill(p, col2_x, row2_y, pw, ph, QColor("#f4505e"), "TEMP", temp_str,
-                         self._pill_scales[5], self._pill_alphas[5], self._hover_progress[5], dim_amount if self._hover_progress[5] < 0.5 else 0.0)
+                         self._pill_scales[5], self._pill_alphas[5], self._hover_progress[5], dim_amount if self._hover_progress[5] < 0.5 else 0.0,
+                         is_active=(self._active_tab == "THERMALS"))
         # Pill 7: BAT / SYS (Lime #10b981)
         self._paint_pill(p, col3_x, row2_y, pw, ph, QColor("#10b981"), bat_label, bat_str,
-                         self._pill_scales[6], self._pill_alphas[6], self._hover_progress[6], dim_amount if self._hover_progress[6] < 0.5 else 0.0)
+                         self._pill_scales[6], self._pill_alphas[6], self._hover_progress[6], dim_amount if self._hover_progress[6] < 0.5 else 0.0,
+                         is_active=(self._active_tab == "SYSTEM"))
         # Pill 8: SET (Sky #38bdf8)
         self._paint_pill(p, col4_x, row2_y, pw, ph, QColor("#38bdf8"), "SET", "CONFIG",
-                         self._pill_scales[7], self._pill_alphas[7], self._hover_progress[7], dim_amount if self._hover_progress[7] < 0.5 else 0.0)
+                         self._pill_scales[7], self._pill_alphas[7], self._hover_progress[7], dim_amount if self._hover_progress[7] < 0.5 else 0.0,
+                         is_active=(self._active_tab == "SETTINGS"))
 
     def _paint_pill(
         self,
@@ -666,8 +713,9 @@ class TopIslandWindow(QWidget):
         alpha: float = 1.0,
         hover_w: float = 0.0,
         dim_other: float = 0.0,
+        is_active: bool = False,
     ):
-        """Paint a single pill with dynamic hover glow, elevation, and accent styling."""
+        """Paint a single pill with dynamic hover glow, elevation, accent styling, and active state."""
         if scale < 0.01 or alpha < 0.01:
             return
 
@@ -696,7 +744,7 @@ class TopIslandWindow(QWidget):
             p.setBrush(QColor(badge_color.red(), badge_color.green(), badge_color.blue(), glow_alpha))
             p.drawRoundedRect(glow_rect, glow_r, glow_r)
 
-        # 2. Pill Background (solid dark #16181f, or elevated luxury gradient on hover)
+        # 2. Pill Background (solid dark #16181f, or elevated luxury gradient on hover, or active state)
         if hover_w > 0.02:
             bg_grad = QLinearGradient(px, py, px, py + ph)
             top_c = QColor(
@@ -719,6 +767,10 @@ class TopIslandWindow(QWidget):
             bb = int(52 + (badge_color.blue() - 52) * hover_w)
             border_pen = QPen(QColor(br, bg, bb), 1.0 + 0.6 * hover_w)
             p.setPen(border_pen)
+        elif is_active:
+            # Active pill subtle emerald/graphite elevated styling
+            p.setBrush(QColor("#13161c"))
+            p.setPen(QPen(QColor(34, 197, 94, 140), 1.2))
         else:
             p.setPen(QPen(QColor("#252934"), 1.0))
             p.setBrush(QColor("#16181f"))
@@ -738,19 +790,53 @@ class TopIslandWindow(QWidget):
 
         # 4. Label (.lbl)
         p.setFont(QFont("Segoe UI", 7.5, QFont.Weight.DemiBold))
-        lbl_r = int(107 + (180 - 107) * hover_w)
-        lbl_g = int(112 + (190 - 112) * hover_w)
-        lbl_b = int(121 + (205 - 121) * hover_w)
-        p.setPen(QColor(lbl_r, lbl_g, lbl_b))
+        lbl_metric = p.fontMetrics()
+        lbl_advance = lbl_metric.horizontalAdvance(label)
+
+        if is_active:
+            lbl_color = QColor("#f1f5f9") if hover_w < 0.05 else QColor(
+                int(241 + (255 - 241) * hover_w),
+                int(245 + (255 - 245) * hover_w),
+                int(249 + (255 - 249) * hover_w),
+            )
+        else:
+            lbl_r = int(107 + (180 - 107) * hover_w)
+            lbl_g = int(112 + (190 - 112) * hover_w)
+            lbl_b = int(121 + (205 - 121) * hover_w)
+            lbl_color = QColor(lbl_r, lbl_g, lbl_b)
+
+        p.setPen(lbl_color)
         p.drawText(
             QRectF(bx + bw + 6, py, 42, ph),
             Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft,
             label,
         )
 
-        # 5. Value (brightens on hover)
+        # 4b. Active Pill Indicator: Little glowing emerald jewel dot
+        if is_active:
+            dot_cx = bx + bw + 6.0 + lbl_advance + 5.5
+            dot_cy = py + ph / 2.0
+
+            # Soft radial emerald aura
+            glow_grad = QRadialGradient(dot_cx, dot_cy, 5.0)
+            glow_grad.setColorAt(0.0, QColor(34, 197, 94, 160))
+            glow_grad.setColorAt(0.5, QColor(34, 197, 94, 70))
+            glow_grad.setColorAt(1.0, QColor(34, 197, 94, 0))
+            p.setPen(Qt.PenStyle.NoPen)
+            p.setBrush(QBrush(glow_grad))
+            p.drawEllipse(QPointF(dot_cx, dot_cy), 5.0, 5.0)
+
+            # Solid vibrant emerald core (2.2px radius)
+            p.setBrush(QColor("#22c55e"))
+            p.drawEllipse(QPointF(dot_cx, dot_cy), 2.2, 2.2)
+
+            # Crisp specular micro-highlight (0.7px radius)
+            p.setBrush(QColor(255, 255, 255, 220))
+            p.drawEllipse(QPointF(dot_cx - 0.6, dot_cy - 0.6), 0.7, 0.7)
+
+        # 5. Value (brightens on hover or when active)
         p.setFont(QFont("Segoe UI", 8.0, QFont.Weight.Bold))
-        val_color = QColor("#ffffff") if hover_w > 0.05 else QColor("#f5f6f8")
+        val_color = QColor("#ffffff") if (hover_w > 0.05 or is_active) else QColor("#f5f6f8")
         p.setPen(val_color)
         p.drawText(
             QRectF(px, py, pw - 8, ph),
