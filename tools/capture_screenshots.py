@@ -63,7 +63,7 @@ def capture_all():
     print("Saved: companion_orb.png")
 
     # Island with docked SENTI (8 subsystem pills)
-    from senti_island import TopIslandWindow, GreetingBubbleWidget
+    from senti_island import TopIslandWindow
     island = TopIslandWindow()
     island._pill_scales = [1.0] * 8
     island._pill_alphas = [1.0] * 8
@@ -90,18 +90,6 @@ def capture_all():
     island.hide()
     pix_island.save(os.path.join(output_dir, "island_docked.png"))
     print("Saved: island_docked.png")
-
-    # Greeting bubble
-    bubble = GreetingBubbleWidget()
-    bubble._text = "Hello, Operator!"
-    bubble._opacity_effect.setOpacity(1.0)
-    bubble._fade_anim.stop()
-    bubble._dismiss_timer.stop()
-    bubble.show()
-    pix_bubble = bubble.grab()
-    bubble.hide()
-    pix_bubble.save(os.path.join(output_dir, "greeting_bubble.png"))
-    print("Saved: greeting_bubble.png")
 
     # 3. Capture Settings Window
     settings = SentiSettings()

@@ -41,123 +41,6 @@ from PySide6.QtWidgets import (
 
 DRAG_THRESHOLD = 5
 
-# Configurable greetings list
-DEFAULT_GREETINGS = [
-    "Hello, Operator!",
-    "Sentinel online.",
-    "All systems nominal.",
-    "Ready to monitor.",
-    "Hey there!",
-    "Sentinel standing by.",
-]
-
-
-class GreetingBubbleWidget(QWidget):
-    """Frameless, luxury dark glass pop-out speech bubble pointing down to SENTI."""
-
-    def __init__(self, parent: Optional[QWidget] = None):
-        super().__init__(parent)
-        self.setWindowFlags(
-            Qt.WindowType.Tool
-            | Qt.WindowType.FramelessWindowHint
-            | Qt.WindowType.WindowStaysOnTopHint
-            | Qt.WindowType.WindowDoesNotAcceptFocus
-        )
-        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
-        self.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating)
-        # Ensure native platform window handle is instantiated
-        self.winId()
-
-        self._text: str = "Hello, Operator!"
-        self.setFixedSize(190, 40)
-
-        self._opacity_effect = QGraphicsOpacityEffect(self)
-        self._opacity_effect.setOpacity(1.0)
-        self.setGraphicsEffect(self._opacity_effect)
-        self._fade_anim = QPropertyAnimation(self._opacity_effect, b"opacity", self)
-        self._fade_anim.setDuration(70)
-        self._fade_anim.setEasingCurve(QEasingCurve.Type.OutCubic)
-
-        # Auto-dismiss timer (stays visible for 3.5 seconds)
-        self._dismiss_timer = QTimer(self)
-        self._dismiss_timer.setSingleShot(True)
-        self._dismiss_timer.setInterval(3500)
-        self._dismiss_timer.timeout.connect(self.fade_out)
-
-    def show_greeting(self, text: str, target_pos: QPoint):
-        """Position above target point and pop in smoothly without delay."""
-        self._text = text
-        font = QFont("Segoe UI", 9, QFont.Weight.DemiBold)
-        metric = self.fontMetrics()
-        text_w = metric.horizontalAdvance(text)
-        new_w = max(160, text_w + 44)
-        self.setFixedSize(new_w, 40)
-
-        gx = target_pos.x() - new_w // 2
-        gy = target_pos.y() - 44
-        self.move(gx, gy)
-
-        self.show()
-        self.raise_()
-        self._fade_anim.stop()
-        self._fade_anim.setStartValue(0.0)
-        self._fade_anim.setEndValue(1.0)
-        self._fade_anim.start()
-        self._dismiss_timer.start()
-
-    def fade_out(self):
-        self._dismiss_timer.stop()
-        self._fade_anim.stop()
-        self._fade_anim.setStartValue(self._opacity_effect.opacity())
-        self._fade_anim.setEndValue(0.0)
-
-        def _on_done():
-            self.hide()
-            try:
-                self._fade_anim.finished.disconnect(_on_done)
-            except Exception:
-                pass
-
-        self._fade_anim.finished.connect(_on_done)
-        self._fade_anim.start()
-
-    def mousePressEvent(self, event):
-        self.fade_out()
-        event.accept()
-
-    def paintEvent(self, event):
-        del event
-        p = QPainter()
-        if not p.begin(self):
-            return
-        try:
-            p.setRenderHint(QPainter.RenderHint.Antialiasing)
-            w = self.width()
-            h = self.height()
-            bubble_h = h - 6.0
-
-            path = QPainterPath()
-            path.addRoundedRect(QRectF(1.0, 1.0, w - 2.0, bubble_h - 2.0), 9.0, 9.0)
-            cx = w / 2.0
-            path.moveTo(cx - 5.0, bubble_h - 1.0)
-            path.lineTo(cx, h - 1.0)
-            path.lineTo(cx + 5.0, bubble_h - 1.0)
-
-            # 100% Solid Opaque Dark Matte Bubble (No glass)
-            p.setBrush(QColor("#0d0e14"))
-            p.setPen(QPen(QColor("#1f2430"), 1.2))
-            p.drawPath(path)
-
-            p.setFont(QFont("Segoe UI Emoji", 9))
-            p.setPen(QColor("#00e5ff"))
-            p.drawText(10, int(bubble_h * 0.68), "✦")
-
-            p.setFont(QFont("Segoe UI", 9, QFont.Weight.DemiBold))
-            p.setPen(QColor("#f8fafc"))
-            p.drawText(QRectF(26, 0, w - 32, bubble_h), Qt.AlignmentFlag.AlignVCenter | Qt.AlignmentFlag.AlignLeft, self._text)
-        finally:
-            p.end()
-
 
 PILL_HIT_INDEX = {
     "pill_cpu": 0,
@@ -200,8 +83,6 @@ class TopIslandWindow(QWidget):
     def __init__(
         self,
         on_drag_moved: Optional[Callable[[QPoint], None]] = None,
-        on_toggle_hud: Optional[Callable[[], None]] = None,
-        on_trigger_greeting: Optional[Callable[[], None]] = None,
         on_refresh: Optional[Callable[[], None]] = None,
         on_toggle_sound: Optional[Callable[[], None]] = None,
         is_sound_enabled_getter: Optional[Callable[[], bool]] = None,
@@ -211,8 +92,6 @@ class TopIslandWindow(QWidget):
     ):
         super().__init__(parent)
         self.on_drag_moved = on_drag_moved
-        self.on_toggle_hud = on_toggle_hud
-        self.on_trigger_greeting = on_trigger_greeting
         self.on_refresh = on_refresh
         self.on_toggle_sound = on_toggle_sound
         self.is_sound_enabled_getter = is_sound_enabled_getter
@@ -417,9 +296,6 @@ class TopIslandWindow(QWidget):
             elif hit == "pill_set":
                 if self.on_open_tab:
                     self.on_open_tab("SETTINGS")
-            elif hit == "chat":
-                if self.on_trigger_greeting:
-                    self.on_trigger_greeting()
             elif hit == "sound":
                 if self.on_toggle_sound:
                     self.on_toggle_sound()
@@ -462,7 +338,7 @@ class TopIslandWindow(QWidget):
             self._hover_target = hit
             if hit and hit.startswith("pill_"):
                 self.setCursor(Qt.CursorShape.PointingHandCursor)
-            elif hit in ("chat", "sound", "refresh"):
+            elif hit in ("sound", "refresh"):
                 self.setCursor(Qt.CursorShape.PointingHandCursor)
             else:
                 self.unsetCursor()

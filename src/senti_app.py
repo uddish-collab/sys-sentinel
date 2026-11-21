@@ -61,13 +61,7 @@ from senti_sound import play_sound, play_pill_hover, play_pill_tick, ensure_soun
 from senti_mascot import SentiMascot, render_mascot_image
 from senti_control import SentiControlWindow
 from senti_dashboard import SentiDashboardWindow
-from senti_island import TopIslandWindow, GreetingBubbleWidget, DEFAULT_GREETINGS, TAB_CANONICAL, PILL_HIT_INDEX
-
-# =====================================================================
-# CONFIGURABLE STARTUP GREETINGS
-# Add, customize, or replace any words in this list:
-# =====================================================================
-STARTUP_GREETINGS = list(DEFAULT_GREETINGS)
+from senti_island import TopIslandWindow, TAB_CANONICAL, PILL_HIT_INDEX
 
 NORMAL_SIZE = 80      # Senti companion size (leaves room for aura & waving glove)
 DOCKED_SIZE = 80      # Nests in Card 1 with center cx: 78, cy: 92
@@ -256,8 +250,8 @@ class CompanionWindow(QWidget):
         if event.button() == Qt.MouseButton.LeftButton:
             if not self._is_dragging:
                 if self.is_docked:
-                    # Inside island: Instant click response (pops out greeting message)
-                    self.app_controller.trigger_greeting_popup()
+                    # Inside island: Playful squish interaction, no popup messages
+                    self.mascot.trigger_squish()
                 else:
                     self._click_count += 1
                     if self._click_count >= 2:
@@ -463,7 +457,6 @@ class SentiApp:
         # 1. Create Minimalist Solid Dark Top Island
         self.island = TopIslandWindow(
             on_drag_moved=self._on_island_drag_moved,
-            on_trigger_greeting=self.trigger_greeting_popup,
             on_refresh=self._on_manual_refresh,
             on_toggle_sound=self.toggle_sound,
             is_sound_enabled_getter=lambda: self.settings.is_sound_enabled(),
@@ -475,10 +468,7 @@ class SentiApp:
         self.island.move(island_pos)
         self.settings.set_island_pos(island_pos)
 
-        # 2. Pop-out Greeting Speech Bubble
-        self.greeting_bubble = GreetingBubbleWidget()
-
-        # 3. Create Companion Window
+        # 2. Create Companion Window
         self.companion = CompanionWindow(self)
         self.companion.is_docked = True
         self.settings.set_docked_state(True)
@@ -631,14 +621,6 @@ class SentiApp:
         self.settings.set_sound_enabled(new_val)
         self.play("click")
         self.island.update()
-
-    def trigger_greeting_popup(self):
-        """Show the pop-out greeting speech bubble above SENTI."""
-        word = random.choice(STARTUP_GREETINGS)
-        senti_geo = self.companion.geometry()
-        target_pt = QPoint(senti_geo.center().x(), senti_geo.top())
-        self.greeting_bubble.show_greeting(word, target_pt)
-        self.play("show")
 
     def _on_dashboard_closed(self):
         """Reset island active state when dashboard window closes."""
@@ -797,7 +779,6 @@ class SentiApp:
 
     def quit_app(self):
         self.dashboard.close()
-        self.greeting_bubble.close()
         if not self.companion.is_docked:
             self.settings.set_window_pos(self.companion.pos())
         self.settings.set_island_pos(self.island.pos())

@@ -54,16 +54,6 @@ class TestCompanionAndIsland(unittest.TestCase):
         self.assertLess(dock_pos.y(), island.y() + island.height())
         island.close()
 
-    def test_greeting_bubble_and_island_telemetry(self):
-        from src.senti_island import GreetingBubbleWidget, DEFAULT_GREETINGS
-        bubble = GreetingBubbleWidget()
-        bubble.show_greeting(DEFAULT_GREETINGS[0], QPoint(400, 200))
-        self.assertEqual(bubble._text, DEFAULT_GREETINGS[0])
-        self.assertTrue(bubble.isVisible())
-        bubble.fade_out()
-        bubble.close()
-
-
     def test_single_tap_hides_companion(self):
         controller = SentiApp()
         companion = controller.companion
