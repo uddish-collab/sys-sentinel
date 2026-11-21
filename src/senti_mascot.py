@@ -290,8 +290,8 @@ class SentiMascot(QWidget):
         # Bobbing & pulsing phase
         self._phase += self._pulse_speed * dt
 
-        # Smooth exponential easing for expression parameters
-        alpha = 0.14
+        # Smooth exponential easing for expression parameters (snappy, responsive)
+        alpha = 0.28
         self._eye_width += (self._target_eye_width - self._eye_width) * alpha
         self._eye_height += (self._target_eye_height - self._eye_height) * alpha
         self._brow_angle += (self._target_brow_angle - self._brow_angle) * alpha
@@ -300,20 +300,20 @@ class SentiMascot(QWidget):
         self._shake_amount += (self._target_shake_amount - self._shake_amount) * alpha
         self._tint_amount += (self._target_tint_amount - self._tint_amount) * alpha
 
-        # Gaze and expressive wink easing
-        self._gaze_x += (self._target_gaze_x - self._gaze_x) * 0.22
-        self._gaze_y += (self._target_gaze_y - self._gaze_y) * 0.22
-        self._wink_amount += (self._target_wink_amount - self._wink_amount) * 0.22
+        # Gaze and expressive wink easing (instant, fluid tracking)
+        self._gaze_x += (self._target_gaze_x - self._gaze_x) * 0.40
+        self._gaze_y += (self._target_gaze_y - self._gaze_y) * 0.40
+        self._wink_amount += (self._target_wink_amount - self._wink_amount) * 0.40
 
         # Waving hand timer
         if self._wave_time_remaining > 0:
             self._wave_time_remaining -= dt
             if self._wave_time_remaining <= 0:
                 self._target_wave_amount = 0.0
-        self._wave_amount += (self._target_wave_amount - self._wave_amount) * 0.18
+        self._wave_amount += (self._target_wave_amount - self._wave_amount) * 0.32
 
         # Squish spring back
-        self._squish_scale += (1.0 - self._squish_scale) * 0.20
+        self._squish_scale += (1.0 - self._squish_scale) * 0.35
 
         # Sweat drop cycle in critical state
         if self._mood == MOOD_CRITICAL:

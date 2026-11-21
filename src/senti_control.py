@@ -62,8 +62,8 @@ class SentiControlWindow(QWidget):
         self._opacity_effect.setOpacity(1.0)
         self.setGraphicsEffect(self._opacity_effect)
         self._fade_anim = QPropertyAnimation(self._opacity_effect, b"opacity", self)
-        self._fade_anim.setDuration(180)
-        self._fade_anim.setEasingCurve(QEasingCurve.Type.InOutCubic)
+        self._fade_anim.setDuration(70)
+        self._fade_anim.setEasingCurve(QEasingCurve.Type.OutCubic)
 
         self._init_ui()
 

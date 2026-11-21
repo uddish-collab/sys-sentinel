@@ -115,7 +115,7 @@ class CompanionWindow(QWidget):
         self._click_count = 0
         self._click_timer = QTimer(self)
         self._click_timer.setSingleShot(True)
-        self._click_timer.setInterval(max(400, QApplication.doubleClickInterval()))
+        self._click_timer.setInterval(220)
         self._click_timer.timeout.connect(self._dispatch_clicks)
 
         # Orb / Docked state
@@ -136,13 +136,13 @@ class CompanionWindow(QWidget):
         self.resize(init_size, init_size)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
 
-        # Opacity animation for hide/show
+        # Opacity animation for hide/show (instant, fluid)
         self._opacity_effect = QGraphicsOpacityEffect(self)
         self._opacity_effect.setOpacity(1.0)
         self.setGraphicsEffect(self._opacity_effect)
         self._fade_anim = QPropertyAnimation(self._opacity_effect, b"opacity", self)
-        self._fade_anim.setDuration(180)
-        self._fade_anim.setEasingCurve(QEasingCurve.Type.InOutCubic)
+        self._fade_anim.setDuration(70)
+        self._fade_anim.setEasingCurve(QEasingCurve.Type.OutCubic)
 
         # Motion animation
         self._motion_group: Optional[QParallelAnimationGroup] = None
@@ -332,16 +332,16 @@ class CompanionWindow(QWidget):
         self._motion_group = QParallelAnimationGroup(self)
 
         geom_anim = QPropertyAnimation(self, b"geometry", self)
-        geom_anim.setDuration(280)
+        geom_anim.setDuration(130)
         geom_anim.setStartValue(curr_geo)
         geom_anim.setEndValue(target_geo)
-        geom_anim.setEasingCurve(QEasingCurve.Type.InOutCubic)
+        geom_anim.setEasingCurve(QEasingCurve.Type.OutCubic)
 
         orb_anim = QPropertyAnimation(self.mascot, b"orb", self)
-        orb_anim.setDuration(280)
+        orb_anim.setDuration(130)
         orb_anim.setStartValue(self.mascot.get_orb())
         orb_anim.setEndValue(target_orb_prop)
-        orb_anim.setEasingCurve(QEasingCurve.Type.InOutCubic)
+        orb_anim.setEasingCurve(QEasingCurve.Type.OutCubic)
 
         self._motion_group.addAnimation(geom_anim)
         self._motion_group.addAnimation(orb_anim)
@@ -352,8 +352,8 @@ class CompanionWindow(QWidget):
     def glide_to_rect(
         self,
         target_geo: QRect,
-        duration: int = 340,
-        easing_curve: QEasingCurve.Type = QEasingCurve.Type.InOutCubic,
+        duration: int = 150,
+        easing_curve: QEasingCurve.Type = QEasingCurve.Type.OutCubic,
         on_finished: Optional[Callable[[], None]] = None,
     ):
         if self._motion_group and self._motion_group.state() == QPropertyAnimation.State.Running:

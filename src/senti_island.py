@@ -75,8 +75,8 @@ class GreetingBubbleWidget(QWidget):
         self._opacity_effect.setOpacity(1.0)
         self.setGraphicsEffect(self._opacity_effect)
         self._fade_anim = QPropertyAnimation(self._opacity_effect, b"opacity", self)
-        self._fade_anim.setDuration(160)
-        self._fade_anim.setEasingCurve(QEasingCurve.Type.InOutCubic)
+        self._fade_anim.setDuration(70)
+        self._fade_anim.setEasingCurve(QEasingCurve.Type.OutCubic)
 
         # Auto-dismiss timer (stays visible for 3.5 seconds)
         self._dismiss_timer = QTimer(self)
@@ -274,8 +274,8 @@ class TopIslandWindow(QWidget):
         self._opacity_effect.setOpacity(1.0)
         self.setGraphicsEffect(self._opacity_effect)
         self._fade_anim = QPropertyAnimation(self._opacity_effect, b"opacity", self)
-        self._fade_anim.setDuration(160)
-        self._fade_anim.setEasingCurve(QEasingCurve.Type.InOutCubic)
+        self._fade_anim.setDuration(70)
+        self._fade_anim.setEasingCurve(QEasingCurve.Type.OutCubic)
         self._entrance_group: Optional[QParallelAnimationGroup] = None
 
     def animate_pills_entrance(self, on_pill_pop: Optional[Callable[[], None]] = None):
@@ -288,9 +288,9 @@ class TopIslandWindow(QWidget):
             timer.stop()
         self._pill_timers.clear()
 
-        # Staggered pop-in for each of the 8 pills (45ms apart)
+        # Fast, responsive staggered pop-in for all 8 pills (12ms apart)
         for i in range(8):
-            delay_ms = i * 45
+            delay_ms = i * 12
             t = QTimer(self)
             t.setSingleShot(True)
             t.setInterval(delay_ms)
@@ -311,7 +311,7 @@ class TopIslandWindow(QWidget):
         anim_timer = QTimer(self)
         anim_timer.setInterval(16)
         start_time = time.time()
-        duration = 0.22
+        duration = 0.12
 
         def _step():
             elapsed = time.time() - start_time
@@ -446,7 +446,7 @@ class TopIslandWindow(QWidget):
             target = 1.0 if (active_idx == i) else 0.0
             diff = target - self._hover_progress[i]
             if abs(diff) > 0.005:
-                self._hover_progress[i] += diff * 0.32
+                self._hover_progress[i] += diff * 0.48
                 changed = True
             else:
                 self._hover_progress[i] = target

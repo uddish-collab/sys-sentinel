@@ -146,6 +146,54 @@ class MiniSparkline(QWidget):
             p.end()
 
 
+class SettingsTabCanvas(QWidget):
+    """Clean, minimalist settings canvas with delicate glowing corner accents."""
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setStyleSheet("background: transparent;")
+
+    def paintEvent(self, event):
+        del event
+        p = QPainter()
+        if not p.begin(self):
+            return
+        try:
+            p.setRenderHint(QPainter.RenderHint.Antialiasing)
+            rect = QRectF(1.5, 1.5, self.width() - 3.0, self.height() - 3.0)
+
+            # Clean dark background matching other subsystem panels
+            p.setPen(Qt.PenStyle.NoPen)
+            p.setBrush(QColor("#111317"))
+            p.drawRoundedRect(rect, 8.0, 8.0)
+
+            # Soft subtle corner glow passes
+            for i in range(3, 0, -1):
+                alpha = int(12 * (4 - i))
+                p.setPen(QPen(QColor(56, 189, 248, alpha), 1.0 + i * 1.5))
+                p.setBrush(Qt.BrushStyle.NoBrush)
+                p.drawRoundedRect(rect, 8.0, 8.0)
+
+            # Hairline inner border
+            p.setPen(QPen(QColor(56, 189, 248, 80), 1.0))
+            p.drawRoundedRect(rect, 8.0, 8.0)
+
+            # High-precision glowing corner arcs
+            c_pen = QPen(QColor(56, 189, 248, 220), 1.8)
+            c_pen.setCapStyle(Qt.PenCapStyle.RoundCap)
+            p.setPen(c_pen)
+            arc_d = 22.0
+            # Top-Left
+            p.drawArc(QRectF(1.5, 1.5, arc_d, arc_d), 90 * 16, 90 * 16)
+            # Top-Right
+            p.drawArc(QRectF(self.width() - 1.5 - arc_d, 1.5, arc_d, arc_d), 0 * 16, 90 * 16)
+            # Bottom-Left
+            p.drawArc(QRectF(1.5, self.height() - 1.5 - arc_d, arc_d, arc_d), 180 * 16, 90 * 16)
+            # Bottom-Right
+            p.drawArc(QRectF(self.width() - 1.5 - arc_d, self.height() - 1.5 - arc_d, arc_d, arc_d), 270 * 16, 90 * 16)
+        finally:
+            p.end()
+
+
 class SentiDashboardWindow(QWidget):
     """Comprehensive, dedicated subsystem monitor panels for Sentinel.
     
@@ -184,8 +232,8 @@ class SentiDashboardWindow(QWidget):
         self._opacity_effect.setOpacity(1.0)
         self.setGraphicsEffect(self._opacity_effect)
         self._fade_anim = QPropertyAnimation(self._opacity_effect, b"opacity", self)
-        self._fade_anim.setDuration(150)
-        self._fade_anim.setEasingCurve(QEasingCurve.Type.InOutCubic)
+        self._fade_anim.setDuration(70)
+        self._fade_anim.setEasingCurve(QEasingCurve.Type.OutCubic)
 
         # Dragging state
         self._is_dragging = False
@@ -731,8 +779,7 @@ class SentiDashboardWindow(QWidget):
 
     # --- TAB 8: SETTINGS & PREFERENCES ---
     def _build_settings_tab(self) -> QWidget:
-        w = QWidget()
-        w.setStyleSheet("background: #111317;")
+        w = SettingsTabCanvas()
         self.color_swatches: Dict[str, QPushButton] = {}
         lay = QVBoxLayout(w)
         lay.setContentsMargins(16, 16, 16, 16)
@@ -1067,6 +1114,25 @@ class SentiDashboardWindow(QWidget):
         self.lbl_title.setText(f"SENTINEL  ·  {title_text}")
         self.lbl_title.setStyleSheet(f"color: {accent_color}; font-size: 11px; font-weight: 700; letter-spacing: 2px;")
 
+        if self._active_tab_name == "SETTINGS":
+            self.tabs.setStyleSheet("""
+                QTabWidget::pane {
+                    border: none;
+                    background: transparent;
+                    top: 0px;
+                }
+            """)
+        else:
+            self.tabs.setStyleSheet("""
+                QTabWidget::pane {
+                    border: 1px solid #1c2028;
+                    border-radius: 8px;
+                    background: #111317;
+                    top: 0px;
+                }
+            """)
+        self.update()
+
         if not self.isVisible() or self._opacity_effect.opacity() < 0.2:
             self.show()
             self.raise_()
@@ -1087,6 +1153,7 @@ class SentiDashboardWindow(QWidget):
 
     def close_panel(self):
         self._active_tab_name = None
+        self.update()
         self.closed.emit()
         self._fade_anim.stop()
         self._fade_anim.setStartValue(self._opacity_effect.opacity())
@@ -1104,11 +1171,13 @@ class SentiDashboardWindow(QWidget):
 
     def closeEvent(self, event):
         self._active_tab_name = None
+        self.update()
         self.closed.emit()
         super().closeEvent(event)
 
     def hideEvent(self, event):
         self._active_tab_name = None
+        self.update()
         self.closed.emit()
         super().hideEvent(event)
 
@@ -1142,8 +1211,38 @@ class SentiDashboardWindow(QWidget):
         try:
             p.setRenderHint(QPainter.RenderHint.Antialiasing)
             rect = QRectF(1.0, 1.0, self.width() - 2.0, self.height() - 2.0)
-            p.setPen(QPen(QColor("#20242c"), 1.2))
-            p.setBrush(QColor("#090a0d"))
-            p.drawRoundedRect(rect, 14.0, 14.0)
+            is_settings = (getattr(self, "_active_tab_name", "") == "SETTINGS")
+
+            if is_settings:
+                # Soft ambient glow around corners/perimeter
+                for i in range(3, 0, -1):
+                    alpha = int(14 * (4 - i))
+                    p.setPen(QPen(QColor(56, 189, 248, alpha), 1.2 + i * 2.0))
+                    p.setBrush(Qt.BrushStyle.NoBrush)
+                    p.drawRoundedRect(rect, 14.0, 14.0)
+
+                # Base background and hairline border
+                p.setPen(QPen(QColor(56, 189, 248, 140), 1.2))
+                p.setBrush(QColor("#090a0d"))
+                p.drawRoundedRect(rect, 14.0, 14.0)
+
+                # High-precision glowing corner arcs
+                c_pen = QPen(QColor(56, 189, 248, 240), 2.0)
+                c_pen.setCapStyle(Qt.PenCapStyle.RoundCap)
+                p.setPen(c_pen)
+                p.setBrush(Qt.BrushStyle.NoBrush)
+                arc_d = 28.0
+                # Top-Left
+                p.drawArc(QRectF(1.0, 1.0, arc_d, arc_d), 90 * 16, 90 * 16)
+                # Top-Right
+                p.drawArc(QRectF(self.width() - 1.0 - arc_d, 1.0, arc_d, arc_d), 0 * 16, 90 * 16)
+                # Bottom-Left
+                p.drawArc(QRectF(1.0, self.height() - 1.0 - arc_d, arc_d, arc_d), 180 * 16, 90 * 16)
+                # Bottom-Right
+                p.drawArc(QRectF(self.width() - 1.0 - arc_d, self.height() - 1.0 - arc_d, arc_d, arc_d), 270 * 16, 90 * 16)
+            else:
+                p.setPen(QPen(QColor("#20242c"), 1.2))
+                p.setBrush(QColor("#090a0d"))
+                p.drawRoundedRect(rect, 14.0, 14.0)
         finally:
             p.end()

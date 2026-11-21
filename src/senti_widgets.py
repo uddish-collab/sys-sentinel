@@ -164,7 +164,7 @@ class SmoothBar(QWidget):
             self._current_value = self._target_value
             self._anim_timer.stop()
         else:
-            self._current_value += diff * 0.18
+            self._current_value += diff * 0.38
         self.update()
 
     def paintEvent(self, event):
@@ -224,8 +224,8 @@ class ToggleSwitch(QWidget):
         self._knob_pos = 1.0 if checked else 0.0
 
         self._anim = QPropertyAnimation(self, b"knob_pos", self)
-        self._anim.setDuration(160)
-        self._anim.setEasingCurve(QEasingCurve.Type.InOutCubic)
+        self._anim.setDuration(70)
+        self._anim.setEasingCurve(QEasingCurve.Type.OutCubic)
 
     def get_knob_pos(self) -> float:
         return self._knob_pos
