@@ -4,7 +4,17 @@ import io
 import struct
 import unittest
 import wave
-from src.senti_sound import synthesize_tone, generate_sound_specs, write_wav_file
+from src.senti_sound import (
+    synthesize_tone,
+    synthesize_glass_tone,
+    generate_sound_specs,
+    write_wav_file,
+    get_sound_engine,
+    play_sound,
+    play_pill_hover,
+    play_pill_tick,
+    PILL_SCALE_FREQUENCIES,
+)
 
 
 class TestSoundSynthesis(unittest.TestCase):
@@ -28,6 +38,28 @@ class TestSoundSynthesis(unittest.TestCase):
         # Must not be clipped (peak amplitude was designed at ~0.55 * 32767)
         self.assertLess(max_val, 32700)
         self.assertGreater(min_val, -32700)
+
+    def test_glass_tone_synthesis_and_scale(self):
+        self.assertEqual(len(PILL_SCALE_FREQUENCIES), 8)
+        for i, freq in enumerate(PILL_SCALE_FREQUENCIES):
+            pcm = synthesize_glass_tone(freq, duration_s=0.04)
+            self.assertGreater(len(pcm), 0)
+            samples = [struct.unpack("<h", pcm[j:j+2])[0] for j in range(0, len(pcm), 2)]
+            self.assertGreater(max(samples), 500)
+            self.assertLess(max(samples), 32700)
+
+    def test_polyphonic_engine_multi_voice_and_max_volume(self):
+        engine = get_sound_engine()
+        engine._ensure_initialized()
+
+        # Rapid fire triggers must not raise exceptions
+        for sound_name in ["blip", "tick", "hover", "attach", "open", "close"]:
+            engine.play(sound_name, enabled=True)
+
+        # Pill pitch modulation triggers 0..7
+        for pill_idx in range(8):
+            engine.play_pill_hover(pill_idx, enabled=True)
+            engine.play_pill_tick(pill_idx, enabled=True)
 
     def test_all_sound_specs_generate_valid_wav(self):
         specs = generate_sound_specs()

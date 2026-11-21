@@ -57,12 +57,12 @@ from senti_settings import (
     get_safe_initial_pos,
     get_default_island_pos,
 )
-from senti_sound import play_sound, ensure_sound_files
+from senti_sound import play_sound, play_pill_hover, play_pill_tick, ensure_sound_files
 from senti_mascot import SentiMascot, render_mascot_image
 from senti_hud import SentiHud
 from senti_control import SentiControlWindow
 from senti_dashboard import SentiDashboardWindow
-from senti_island import TopIslandWindow, GreetingBubbleWidget, DEFAULT_GREETINGS, TAB_CANONICAL
+from senti_island import TopIslandWindow, GreetingBubbleWidget, DEFAULT_GREETINGS, TAB_CANONICAL, PILL_HIT_INDEX
 from senti_hotkeys import (
     GlobalHotKeyManager,
     MOD_CONTROL,
@@ -648,7 +648,9 @@ class SentiApp:
             self.companion.raise_()
             self.companion.mascot.trigger_squish()
             self.play("attach")
-            self.island.animate_pills_entrance(on_pill_pop=lambda: self.play("tick"))
+            self.island.animate_pills_entrance(
+                on_pill_pop=lambda idx=0: play_pill_tick(idx, enabled=self.settings.is_sound_enabled())
+            )
 
         # Smooth glide back into island Card 1
         self.companion.glide_to_rect(target_geo, duration=350, on_finished=_on_re_dock)
@@ -661,12 +663,16 @@ class SentiApp:
             self.companion.raise_()
 
     def _on_island_pill_hover(self, pill_name: Optional[str]):
-        """Direct Senti's gaze and expressive reaction toward the hovered telemetry pill."""
+        """Direct Senti's gaze and trigger dynamically modulated pitch hover audio."""
         if not self.companion or not hasattr(self.companion, "mascot"):
             return
         self.companion.mascot.set_pill_hover_focus(pill_name, telemetry=self.island._telemetry)
         if pill_name:
-            self.play("hover")
+            pill_idx = PILL_HIT_INDEX.get(pill_name, 0)
+            play_pill_hover(pill_idx, enabled=self.settings.is_sound_enabled())
+            if pill_name == "pill_set":
+                # Expressive wink tone on SET
+                self.play("wink")
 
     def _on_manual_refresh(self):
         """Manual telemetry poll triggered from the island UI."""
@@ -825,8 +831,13 @@ class SentiApp:
                     self.companion.mascot.trigger_squish()
                     self.play("attach")
 
-                    # Step 4: Pills appear in a smooth transition
-                    QTimer.singleShot(60, lambda: self.island.animate_pills_entrance(on_pill_pop=lambda: self.play("tick")))
+                    # Step 4: Pills appear in a smooth transition with ascending ripple audio
+                    QTimer.singleShot(
+                        60,
+                        lambda: self.island.animate_pills_entrance(
+                            on_pill_pop=lambda idx=0: play_pill_tick(idx, enabled=self.settings.is_sound_enabled())
+                        ),
+                    )
 
                 # Dynamic cute glide with OutBack curve (subtle playful landing hop)
                 self.companion.glide_to_rect(

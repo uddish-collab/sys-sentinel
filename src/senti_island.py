@@ -297,7 +297,10 @@ class TopIslandWindow(QWidget):
 
             def _start_pill(pill_idx=i):
                 if on_pill_pop:
-                    on_pill_pop()
+                    try:
+                        on_pill_pop(pill_idx)
+                    except TypeError:
+                        on_pill_pop()
                 self._animate_single_pill(pill_idx)
 
             t.timeout.connect(_start_pill)
