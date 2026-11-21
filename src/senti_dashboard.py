@@ -777,66 +777,13 @@ class SentiDashboardWindow(QWidget):
         lay.addStretch()
         return w
 
-    # --- TAB 8: SETTINGS & PREFERENCES ---
+    # --- TAB 8: SETTINGS & WORKSTATION INTELLIGENCE ---
     def _build_settings_tab(self) -> QWidget:
         w = SettingsTabCanvas()
-        self.color_swatches: Dict[str, QPushButton] = {}
-        lay = QVBoxLayout(w)
-        lay.setContentsMargins(16, 16, 16, 16)
-        lay.setSpacing(12)
-        lay.addStretch()
+        root_lay = QVBoxLayout(w)
+        root_lay.setContentsMargins(18, 16, 18, 14)
+        root_lay.addStretch()
         return w
-
-    def _refresh_color_swatches(self):
-        if not hasattr(self, "color_swatches"):
-            return
-        for key, btn in self.color_swatches.items():
-            c = self.settings.get_color(key)
-            text_color = "#000000" if key == "body" else "#ffffff"
-            btn.setText(c.name().upper())
-            btn.setStyleSheet(f"""
-                QPushButton {{
-                    background-color: {c.name()};
-                    color: {text_color};
-                    border: 1px solid #252934;
-                    border-radius: 4px;
-                    font-size: 9px;
-                    font-weight: bold;
-                }}
-            """)
-
-    def _apply_theme(self, theme_name: str):
-        if self.settings.apply_preset_theme(theme_name):
-            self._refresh_color_swatches()
-            if self.on_colors_changed:
-                self.on_colors_changed()
-
-    def _pick_color(self, name: str):
-        current_c = self.settings.get_color(name)
-        dialog = QColorDialog(current_c, self)
-        dialog.setOption(QColorDialog.ColorDialogOption.DontUseNativeDialog, True)
-        dialog.setWindowTitle(f"Choose {name.capitalize()} Color")
-        if dialog.exec():
-            selected = dialog.selectedColor()
-            if selected.isValid():
-                self.settings.set_color(name, selected)
-                self._refresh_color_swatches()
-                if self.on_colors_changed:
-                    self.on_colors_changed()
-
-    def _reset_colors(self):
-        self.settings.reset_colors()
-        self._refresh_color_swatches()
-        if self.on_colors_changed:
-            self.on_colors_changed()
-
-    def _toggle_sound(self):
-        new_val = not self.settings.is_sound_enabled()
-        self.settings.set_sound_enabled(new_val)
-        if hasattr(self, "lbl_sound_status") and self.lbl_sound_status:
-            self.lbl_sound_status.setText("Audio Tones: " + ("ENABLED" if new_val else "MUTED"))
-        if self.on_sound_toggled:
-            self.on_sound_toggled(new_val)
 
     # --- Telemetry Refresh Dispatcher ---
     def update_telemetry(self, data: Dict[str, Any]):
