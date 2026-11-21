@@ -110,8 +110,8 @@ class TopIslandWindow(QWidget):
         # Ensure native platform window handle is instantiated
         self.winId()
 
-        # Minimalist 892 x 136 layout (clean dual-card design with 8 subsystem pills)
-        self.setFixedSize(892, 136)
+        # Minimalist 706 x 136 layout (clean dual-card design with 8 subsystem pills)
+        self.setFixedSize(706, 136)
 
         # Telemetry data
         self._telemetry: Dict[str, Any] = {
@@ -212,8 +212,8 @@ class TopIslandWindow(QWidget):
         anim_timer.start()
 
     def get_dock_target_pos(self, senti_size: int = 80) -> QPoint:
-        """Calculate screen position where SENTI nests inside Card 1 (cx: 171, cy: 68)."""
-        dock_x = self.x() + 171 - senti_size // 2
+        """Calculate screen position where SENTI nests inside Card 1 (cx: 78, cy: 68)."""
+        dock_x = self.x() + 78 - senti_size // 2
         dock_y = self.y() + 68 - senti_size // 2
         return QPoint(dock_x, dock_y)
 
@@ -239,26 +239,26 @@ class TopIslandWindow(QWidget):
     def _hit_test(self, pos: QPoint) -> Optional[str]:
         px, py = pos.x(), pos.y()
 
-        # Right Card: 8 subsystem pills in 4x2 matrix (px: 342..882, py: 10..126)
-        if 342 <= px <= 882 and 10 <= py <= 126:
+        # Right Card: 8 subsystem pills in 4x2 matrix (px: 156..696, py: 10..126)
+        if 156 <= px <= 696 and 10 <= py <= 126:
             # Row determination
             if py < 65:
                 # Row 1: CPU, RAM, GPU, NET
-                if px < 480:
+                if px < 294:
                     return "pill_cpu"
-                elif px < 612:
+                elif px < 426:
                     return "pill_ram"
-                elif px < 744:
+                elif px < 558:
                     return "pill_gpu"
                 else:
                     return "pill_net"
             else:
                 # Row 2: DISK, TEMP, SYS, SET
-                if px < 480:
+                if px < 294:
                     return "pill_disk"
-                elif px < 612:
+                elif px < 426:
                     return "pill_temp"
-                elif px < 744:
+                elif px < 558:
                     return "pill_sys"
                 else:
                     return "pill_set"
@@ -485,15 +485,15 @@ class TopIslandWindow(QWidget):
         self._paint_card_2(p)
 
     def _paint_card_1(self, p: QPainter):
-        """Paint Card 1 (Left: 322x116, radius 20, solid dark matte #111317)."""
-        c1_rect = QRectF(10.0, 10.0, 322.0, 116.0)
+        """Paint Card 1 (Left: 136x116, radius 20, solid dark matte #111317)."""
+        c1_rect = QRectF(10.0, 10.0, 136.0, 116.0)
         p.setPen(QPen(QColor("#1c2028"), 1.0))
         p.setBrush(QColor("#111317"))
         p.drawRoundedRect(c1_rect, 20.0, 20.0)
 
     def _paint_card_2(self, p: QPainter):
         """Paint Card 2 (Right: 540x116, radius 20, solid dark matte #111317, 8 pills in 4x2 grid)."""
-        c2_rect = QRectF(342.0, 10.0, 540.0, 116.0)
+        c2_rect = QRectF(156.0, 10.0, 540.0, 116.0)
         p.setPen(QPen(QColor("#1c2028"), 1.0))
         p.setBrush(QColor("#111317"))
         p.drawRoundedRect(c2_rect, 20.0, 20.0)
@@ -530,11 +530,11 @@ class TopIslandWindow(QWidget):
             hours = uptime_s / 3600.0
             bat_str = f"{hours:.1f}h" if hours < 24 else f"{(hours/24):.1f}d"
 
-        # 4x2 matrix layout (124px width, 8px gap -> 352..872)
-        col1_x = 352.0
-        col2_x = 484.0
-        col3_x = 616.0
-        col4_x = 748.0
+        # 4x2 matrix layout (124px width, 8px gap -> 166..686)
+        col1_x = 166.0
+        col2_x = 298.0
+        col3_x = 430.0
+        col4_x = 562.0
         row1_y = 28.0
         row2_y = 70.0
         pw = 124.0
