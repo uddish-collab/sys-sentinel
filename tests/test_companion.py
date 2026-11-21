@@ -37,7 +37,6 @@ class TestCompanionAndIsland(unittest.TestCase):
         self.assertFalse(companion.is_on_senti(QPoint(84, 84)))
 
         # Clean up
-        controller.hotkeys.unregister_all()
         companion.close()
         controller.island.close()
         controller.hud.close()

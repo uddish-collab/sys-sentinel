@@ -155,7 +155,7 @@ class SentiControlWindow(QWidget):
         left_col.addStretch()
         top_split.addLayout(left_col, stretch=1)
 
-        # Right Column: Mascot Live Preview + Shortcuts
+        # Right Column: Mascot Live Preview
         right_col = QVBoxLayout()
         right_col.setSpacing(10)
 
@@ -194,35 +194,8 @@ class SentiControlWindow(QWidget):
 
         p_card_layout.addLayout(btn_row)
         right_col.addWidget(preview_card)
+        right_col.addStretch()
 
-        # Global Shortcuts Info Card
-        shortcuts_frame = QFrame()
-        shortcuts_frame.setProperty("class", "card")
-        sc_layout = QVBoxLayout(shortcuts_frame)
-        sc_layout.setContentsMargins(10, 8, 10, 8)
-        sc_layout.setSpacing(4)
-
-        sc_title = QLabel("KEYBOARD SHORTCUTS")
-        sc_title.setStyleSheet("color: #00e5ff; font-size: 10px; font-weight: 700; letter-spacing: 1px;")
-        sc_layout.addWidget(sc_title)
-
-        for key_str, action_str in [
-            ("Ctrl+Shift+S", "Show / Hide SENTI"),
-            ("Ctrl+Shift+H", "Toggle Telemetry HUD"),
-            ("Ctrl+Shift+I", "Return to Island Dock"),
-            ("Ctrl+Shift+O", "Toggle Orb Mode"),
-        ]:
-            r = QHBoxLayout()
-            k_lbl = QLabel(key_str)
-            k_lbl.setStyleSheet("color: #00e5ff; background: #0c182b; border: 1px solid #1a3052; padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: 600;")
-            a_lbl = QLabel(action_str)
-            a_lbl.setStyleSheet("color: #8c9dbd; font-size: 11px;")
-            r.addWidget(k_lbl)
-            r.addWidget(a_lbl)
-            r.addStretch()
-            sc_layout.addLayout(r)
-
-        right_col.addWidget(shortcuts_frame)
         top_split.addLayout(right_col, stretch=1)
         root_layout.addLayout(top_split)
 

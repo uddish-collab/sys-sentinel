@@ -1,7 +1,7 @@
 """Sentinel Desktop Companion and System Tray Controller.
 
 Polished Windows 10/11 desktop companion featuring the animated SENTI mascot,
-minimalist black glass top island, startup greeting wave, multi-click gestures, and global hotkeys.
+minimalist black glass top island, startup greeting wave, and multi-click gestures.
 """
 
 import math
@@ -63,11 +63,6 @@ from senti_hud import SentiHud
 from senti_control import SentiControlWindow
 from senti_dashboard import SentiDashboardWindow
 from senti_island import TopIslandWindow, GreetingBubbleWidget, DEFAULT_GREETINGS, TAB_CANONICAL, PILL_HIT_INDEX
-from senti_hotkeys import (
-    GlobalHotKeyManager,
-    MOD_CONTROL,
-    MOD_SHIFT,
-)
 
 # =====================================================================
 # CONFIGURABLE STARTUP GREETINGS
@@ -522,28 +517,10 @@ class SentiApp:
         # Track previous mood to trigger audio transitions
         self._prev_mood: str = "calm"
 
-        # 6. Global Keyboard Shortcuts Manager
-        self.hotkeys = GlobalHotKeyManager()
-        self._init_hotkeys()
-
-        # 7. Polling Timer (1 second interval)
+        # 6. Polling Timer (1 second interval)
         self.poll_timer = QTimer()
         self.poll_timer.setInterval(1000)
         self.poll_timer.timeout.connect(self.poll_telemetry)
-
-    def _init_hotkeys(self):
-        # Ctrl + Shift + S: Toggle Show / Hide SENTI
-        self.hotkeys.register_hotkey(MOD_CONTROL | MOD_SHIFT, 0x53, self.toggle_companion_visibility)
-        # Ctrl + Shift + H: Toggle HUD
-        self.hotkeys.register_hotkey(MOD_CONTROL | MOD_SHIFT, 0x48, self.toggle_hud)
-        # Ctrl + Shift + I: Return to Island
-        self.hotkeys.register_hotkey(MOD_CONTROL | MOD_SHIFT, 0x49, self.return_to_island)
-        # Ctrl + Shift + D: Dedicated Telemetry Dashboard
-        self.hotkeys.register_hotkey(MOD_CONTROL | MOD_SHIFT, 0x44, lambda: self.open_dashboard_tab("CPU"))
-        # Ctrl + Shift + O: Toggle Orb mode
-        self.hotkeys.register_hotkey(MOD_CONTROL | MOD_SHIFT, 0x4F, self.companion.toggle_orb)
-        # Install filter
-        self.hotkeys.start(QApplication.instance())
 
     def _init_tray(self):
         tray_img = render_mascot_image(size=64, is_orb=True)
@@ -629,7 +606,7 @@ class SentiApp:
         self.play("pop")
 
     def return_to_island(self):
-        """Triple-click on SENTI or hotkey: Senti glides to dock, plays attach, and pills cascade in."""
+        """Triple-click on SENTI: Senti glides to dock, plays attach, and pills cascade in."""
         self.companion.is_docked = True
         self.settings.set_docked_state(True)
 
@@ -856,7 +833,6 @@ class SentiApp:
     def quit_app(self):
         self.dashboard.close()
         self.greeting_bubble.close()
-        self.hotkeys.unregister_all()
         if not self.companion.is_docked:
             self.settings.set_window_pos(self.companion.pos())
         self.settings.set_island_pos(self.island.pos())
