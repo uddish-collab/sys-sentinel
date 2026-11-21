@@ -44,10 +44,16 @@ from PySide6.QtWidgets import (
     QScrollArea,
     QColorDialog,
     QGraphicsOpacityEffect,
+    QLineEdit,
+    QTextEdit,
 )
 
 from senti_widgets import SmoothBar
 from senti_settings import SentiSettings, PRESET_THEMES, DEFAULT_COLORS
+try:
+    from src.senti_brain import SentiBrain
+except ImportError:
+    from senti_brain import SentiBrain
 try:
     from src.senti_sound import play_sound
 except ImportError:
@@ -490,8 +496,9 @@ class SentiDashboardWindow(QWidget):
         self._is_dragging = False
         self._press_pos = None
 
-        # Data cache
+        # Data cache & Brain
         self._telemetry: Dict[str, Any] = {}
+        self.brain = SentiBrain()
 
         self._init_ui()
 
@@ -1304,6 +1311,135 @@ class SentiDashboardWindow(QWidget):
         c2_lay.addLayout(dial_row)
         lay.addWidget(c2)
 
+        # -------------------------------------------------------------
+        # CARD 3: SENTI COMM LINK (STARK / JARVIS WORKSTATION TERMINAL)
+        # -------------------------------------------------------------
+        c3 = QFrame()
+        c3.setObjectName("CommLinkCard")
+        c3.setStyleSheet("""
+            QFrame#CommLinkCard {
+                background: #0d0e14;
+                border: 1px solid #1c2028;
+                border-radius: 6px;
+            }
+            QLabel {
+                border: none;
+                background: transparent;
+            }
+        """)
+        c3_lay = QVBoxLayout(c3)
+        c3_lay.setContentsMargins(16, 10, 16, 10)
+        c3_lay.setSpacing(6)
+
+        c3_head = QHBoxLayout()
+        lbl_c3_title = QLabel("SENTI COMM LINK")
+        lbl_c3_title.setStyleSheet("color: #8c9dbd; font-size: 10px; font-weight: 700; letter-spacing: 0.6px;")
+        lbl_c3_status = QLabel("●  STARK / JARVIS PROTOCOL")
+        lbl_c3_status.setStyleSheet("color: #22c55e; font-size: 9px; font-weight: 700; letter-spacing: 0.5px;")
+        c3_head.addWidget(lbl_c3_title)
+        c3_head.addStretch()
+        c3_head.addWidget(lbl_c3_status)
+        c3_lay.addLayout(c3_head)
+
+        chat_log = QTextEdit()
+        chat_log.setReadOnly(True)
+        chat_log.setFixedHeight(75)
+        chat_log.setStyleSheet("""
+            QTextEdit {
+                background: #08090d;
+                border: 1px solid #1a1e28;
+                border-radius: 4px;
+                color: #cbd5e1;
+                font-family: Consolas, 'Segoe UI';
+                font-size: 10px;
+                padding: 6px;
+                line-height: 135%;
+            }
+            QScrollBar:vertical {
+                background: #08090d;
+                width: 4px;
+                border: none;
+            }
+            QScrollBar::handle:vertical {
+                background: #252b3b;
+                border-radius: 2px;
+            }
+            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
+                height: 0px;
+            }
+        """)
+        chat_log.setHtml(
+            "<span style='color: #38bdf8; font-weight: 700;'>SENTI:</span> "
+            "<span style='color: #e2e8f0;'>All telemetry feeds green, sir. Ask me about your silicon, memory, or creator.</span>"
+        )
+        c3_lay.addWidget(chat_log)
+
+        input_row = QHBoxLayout()
+        input_row.setSpacing(6)
+
+        prompt_input = QLineEdit()
+        prompt_input.setPlaceholderText("Ask Senti about CPU, RAM, thermals, creator...")
+        prompt_input.setStyleSheet("""
+            QLineEdit {
+                background: #141722;
+                border: 1px solid #23293a;
+                border-radius: 4px;
+                color: #f8fafc;
+                font-size: 10px;
+                padding: 5px 10px;
+                font-family: 'Segoe UI', Consolas;
+            }
+            QLineEdit:focus {
+                border: 1px solid #38bdf8;
+                background: #161b28;
+            }
+        """)
+
+        btn_send = QPushButton("TRANSMIT ↵")
+        btn_send.setFixedSize(86, 26)
+        btn_send.setCursor(Qt.CursorShape.PointingHandCursor)
+        btn_send.setStyleSheet("""
+            QPushButton {
+                background: #1a2234;
+                color: #38bdf8;
+                font-size: 9px;
+                font-weight: 700;
+                letter-spacing: 0.5px;
+                border: 1px solid #283550;
+                border-radius: 4px;
+            }
+            QPushButton:hover {
+                background: #243048;
+                color: #ffffff;
+                border: 1px solid #38bdf8;
+            }
+            QPushButton:pressed {
+                background: #141b2a;
+            }
+        """)
+
+        def _send_msg():
+            text = prompt_input.text().strip()
+            if not text:
+                return
+            prompt_input.clear()
+            play_sound("click", enabled=self.settings.is_sound_enabled())
+
+            chat_log.append(f"<span style='color: #64748b; font-weight: 700;'>YOU:</span> <span style='color: #cbd5e1;'>{text}</span>")
+            reply, mood = self.brain.respond(text, self._telemetry)
+
+            accent = "#38bdf8" if mood in ("calm", "stark") else ("#22c55e" if mood == "wink" else "#ef4444")
+            chat_log.append(f"<span style='color: {accent}; font-weight: 700;'>SENTI:</span> <span style='color: #f1f5f9;'>{reply}</span>")
+            chat_log.verticalScrollBar().setValue(chat_log.verticalScrollBar().maximum())
+
+        btn_send.clicked.connect(_send_msg)
+        prompt_input.returnPressed.connect(_send_msg)
+
+        input_row.addWidget(prompt_input, 1)
+        input_row.addWidget(btn_send)
+        c3_lay.addLayout(input_row)
+
+        lay.addWidget(c3)
         lay.addStretch()
 
         def on_dial(idx: int, tname: str):
