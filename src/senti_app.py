@@ -252,7 +252,7 @@ class CompanionWindow(QWidget):
                 if self.is_docked:
                     # Inside island: Trigger funny expression with matching authentic sound!
                     sound_name = self.mascot.trigger_funny_expression()
-                    if self.app_controller:
+                    if sound_name and self.app_controller:
                         self.app_controller.play(sound_name)
                 else:
                     self._click_count += 1

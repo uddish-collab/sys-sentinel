@@ -98,7 +98,7 @@ class SentiMascot(QWidget):
         self._target_wink_amount: float = 0.0
         self._pill_focus: Optional[str] = None
 
-        # Funny expression state (for island click interactions)
+        # Funny expression state & particle systems (for island click interactions)
         self._funny_expression: Optional[str] = None
         self._funny_time_remaining: float = 0.0
         self._funny_idx: int = 0
@@ -108,6 +108,10 @@ class SentiMascot(QWidget):
         self._right_gaze_offset_x: float = 0.0
         self._left_gaze_offset_y: float = 0.0
         self._right_gaze_offset_y: float = 0.0
+        self._blush_amount: float = 0.0
+        self._target_blush: float = 0.0
+        self._particles: List[Dict[str, Any]] = []
+        self._lightning_arcs: List[List[QPointF]] = []
 
         # Base custom colors (provided by settings/controller)
         self.color_body = QColor("#f4f1ea")
@@ -185,94 +189,134 @@ class SentiMascot(QWidget):
         self._funny_expression = None
         self._funny_time_remaining = 0.0
         self._target_head_tilt = 0.0
+        self._target_blush = 0.0
         self._left_gaze_offset_x = 0.0
         self._right_gaze_offset_x = 0.0
         self._left_gaze_offset_y = 0.0
         self._right_gaze_offset_y = 0.0
+        self._particles.clear()
+        self._lightning_arcs.clear()
         self._apply_mood_targets()
         self.update()
 
-    def trigger_funny_expression(self) -> str:
+    def trigger_funny_expression(self) -> Optional[str]:
         """Trigger a hilarious face reaction when tapped inside the island dock.
         
-        Cycles through playful expressions and returns the matching sound effect name.
+        Features a strict 2.0-second lockout gate: subsequent clicks during
+        an active reaction are safely ignored so Senti stays in the current state.
+        Returns the matching sound effect name, or None if locked out.
         """
-        expressions = ["derp", "shock", "wink", "annoyed", "love"]
+        if self._funny_time_remaining > 0:
+            return None
+
+        expressions = ["shock", "annoyed", "wink", "love", "derp"]
         expr = expressions[self._funny_idx % len(expressions)]
         self._funny_idx += 1
 
         self._funny_expression = expr
-        self._funny_time_remaining = 1.8  # lasts 1.8 seconds before smoothly springing back
+        self._funny_time_remaining = 2.0  # Exactly 2.0 seconds
+        self._particles.clear()
+        self._lightning_arcs.clear()
 
         sound_name = "pop"
 
-        if expr == "derp":
-            # 1. The Derp (Cross-eyed, goofy head tilt, bouncy squish)
-            self._target_eye_width = 1.15
-            self._target_eye_height = 0.95
-            self._target_brow_angle = -0.30
-            self._target_head_tilt = 12.0
-            self._left_gaze_offset_x = 0.90   # left eye looks right
-            self._right_gaze_offset_x = -0.90  # right eye looks left
-            self._left_gaze_offset_y = 0.15
-            self._right_gaze_offset_y = -0.15
-            self._target_wink_amount = 0.0
-            self._squish_scale = 0.82
-            sound_name = "dizzy"
-
-        elif expr == "shock":
-            # 2. Bug-Eyed Shock (O_O Startle)
-            self._target_eye_width = 1.55
-            self._target_eye_height = 1.50
+        if expr == "shock":
+            # 1. Shock: Softened neon electric yellow aura, lightning plasma arcs, bug-eyes
+            self._target_eye_width = 1.60
+            self._target_eye_height = 1.55
             self._target_brow_angle = 0.45
-            self._target_head_tilt = -3.0
+            self._target_head_tilt = -2.0
             self._left_gaze_offset_x = 0.0
             self._right_gaze_offset_x = 0.0
             self._left_gaze_offset_y = -0.25
             self._right_gaze_offset_y = -0.25
             self._target_wink_amount = 0.0
+            self._target_blush = 0.0
             self._squish_scale = 0.76
             sound_name = "pop"
 
-        elif expr == "wink":
-            # 3. Cheeky Wink & Smirk (with single paw wave)
+        elif expr == "annoyed":
+            # 2. Annoyed: Crimson red smolder, rising smoke wisps, drooping side-eye
             self._target_eye_width = 1.25
-            self._target_eye_height = 1.10
+            self._target_eye_height = 0.38
+            self._target_brow_angle = -0.25
+            self._target_head_tilt = -7.0
+            self._left_gaze_offset_x = -0.85
+            self._right_gaze_offset_x = -0.85
+            self._left_gaze_offset_y = 0.08
+            self._right_gaze_offset_y = 0.08
+            self._target_wink_amount = 0.0
+            self._target_blush = 0.0
+            self._squish_scale = 0.92
+            sound_name = "annoyed"
+
+        elif expr == "wink":
+            # 3. Wink: 3D fluttering party confetti ribbons, winking right eye, paw wave
+            self._target_eye_width = 1.25
+            self._target_eye_height = 1.15
             self._target_brow_angle = 0.20
             self._target_head_tilt = 6.0
             self._left_gaze_offset_x = 0.20
             self._right_gaze_offset_x = 0.20
+            self._left_gaze_offset_y = 0.0
+            self._right_gaze_offset_y = 0.0
             self._target_wink_amount = 1.0
+            self._target_blush = 0.0
             self._squish_scale = 0.85
-            self.trigger_greeting_wave(duration_s=1.4)
+            self.trigger_greeting_wave(duration_s=1.6)
+
+            # Spawn 26 multi-colored fluttering confetti ribbons
+            cx = self.width() / 2.0
+            cy = self.height() / 2.0
+            confetti_colors = [
+                QColor("#38bdf8"), QColor("#f43f5e"), QColor("#facc15"),
+                QColor("#a855f7"), QColor("#34d399")
+            ]
+            for _ in range(26):
+                self._particles.append({
+                    "type": "confetti",
+                    "x": cx + random.uniform(-22.0, 22.0),
+                    "y": cy - random.uniform(-4.0, 10.0),
+                    "vx": random.uniform(-2.6, 2.6),
+                    "vy": random.uniform(-4.8, -2.2),
+                    "rot": random.uniform(0.0, 360.0),
+                    "vrot": random.uniform(-10.0, 10.0),
+                    "w": random.uniform(4.5, 7.5),
+                    "h": random.uniform(3.0, 5.0),
+                    "color": random.choice(confetti_colors),
+                    "life": 1.0,
+                })
             sound_name = "wink"
 
-        elif expr == "annoyed":
-            # 4. Annoyed / Sleepy Side-Eye
-            self._target_eye_width = 1.30
-            self._target_eye_height = 0.38
-            self._target_brow_angle = -0.25
-            self._target_head_tilt = -8.0
-            self._left_gaze_offset_x = -0.85
-            self._right_gaze_offset_x = -0.85
-            self._target_wink_amount = 0.0
-            self._squish_scale = 0.90
-            sound_name = "annoyed"
-
         elif expr == "love":
-            # 5. Joyful Anime Squint (^ _ ^) with warm glow pulse
-            self._target_eye_width = 1.35
+            # 4. Love: Floating red hearts on sine-wave trails, soft cheek blush, anime arcs
+            self._target_eye_width = 1.30
             self._target_eye_height = 0.70
             self._target_brow_angle = 0.30
-            self._target_head_tilt = 5.0
+            self._target_head_tilt = 4.0
             self._left_gaze_offset_x = 0.0
             self._right_gaze_offset_x = 0.0
+            self._left_gaze_offset_y = 0.0
+            self._right_gaze_offset_y = 0.0
             self._target_wink_amount = 0.0
-            self._squish_scale = 0.80
-            # Warm glowing rose-coral tint
-            self._tint_r, self._tint_g, self._tint_b = 255.0, 105.0, 180.0
-            self._target_tint_amount = 0.60
+            self._target_blush = 1.0
+            self._squish_scale = 0.82
             sound_name = "love"
+
+        elif expr == "derp":
+            # 5. Goofy / Derp: 3D inclined orbiting cartoon stars, cross-eyed gaze, head tilt
+            self._target_eye_width = 1.15
+            self._target_eye_height = 0.95
+            self._target_brow_angle = -0.30
+            self._target_head_tilt = 12.0
+            self._left_gaze_offset_x = 0.90   # left eye looks right
+            self._right_gaze_offset_x = -0.90  # right eye looks left (cross-eyed!)
+            self._left_gaze_offset_y = 0.15
+            self._right_gaze_offset_y = -0.15
+            self._target_wink_amount = 0.0
+            self._target_blush = 0.0
+            self._squish_scale = 0.82
+            sound_name = "dizzy"
 
         self.update()
         return sound_name
@@ -413,12 +457,15 @@ class SentiMascot(QWidget):
         self._gaze_y += (self._target_gaze_y - self._gaze_y) * 0.40
         self._wink_amount += (self._target_wink_amount - self._wink_amount) * 0.40
         self._head_tilt += (self._target_head_tilt - self._head_tilt) * 0.35
+        self._blush_amount += (self._target_blush - self._blush_amount) * 0.30
 
-        # Funny expression timer
+        # Funny expression timer (strict 2.0s duration)
         if self._funny_time_remaining > 0:
             self._funny_time_remaining -= dt
             if self._funny_time_remaining <= 0:
                 self.reset_funny_expression()
+            else:
+                self._update_funny_particles(dt)
 
         # Waving hand timer
         if self._wave_time_remaining > 0:
@@ -450,10 +497,133 @@ class SentiMascot(QWidget):
 
         self.update()
 
+    def _update_funny_particles(self, dt: float):
+        """Update physics-based particle systems for active funny expressions."""
+        cx = self.width() / 2.0
+        cy = self.height() / 2.0
+
+        # 1. Shock: Procedural high-voltage lightning plasma arcs
+        if self._funny_expression == "shock":
+            if random.random() < 0.75:
+                angle = random.uniform(0.0, math.pi * 2.0)
+                r_helmet = random.uniform(22.0, 36.0)
+                sx = cx + math.cos(angle) * r_helmet
+                sy = cy + math.sin(angle) * (r_helmet * 0.72)
+                pts = [QPointF(sx, sy)]
+                curr_x, curr_y = sx, sy
+                for _ in range(random.randint(3, 5)):
+                    curr_x += random.uniform(-10.0, 10.0)
+                    curr_y += random.uniform(-10.0, 10.0)
+                    pts.append(QPointF(curr_x, curr_y))
+                self._lightning_arcs = [pts]
+            else:
+                self._lightning_arcs.clear()
+
+        # 2. Annoyed: Rising steam / smoke wisps and drifting angry red embers
+        elif self._funny_expression == "annoyed":
+            self._lightning_arcs.clear()
+            if random.random() < 0.38 and len(self._particles) < 22:
+                self._particles.append({
+                    "type": "smoke",
+                    "x": cx + random.uniform(-16.0, 16.0),
+                    "y": cy - 14.0,
+                    "vx": random.uniform(-0.4, 0.4),
+                    "vy": random.uniform(-1.2, -0.6),
+                    "radius": random.uniform(3.0, 5.0),
+                    "alpha": 0.65,
+                })
+            if random.random() < 0.32 and len(self._particles) < 28:
+                self._particles.append({
+                    "type": "ember",
+                    "x": cx + random.uniform(-18.0, 18.0),
+                    "y": cy - 10.0,
+                    "vx": random.uniform(-0.6, 0.6),
+                    "vy": random.uniform(-1.5, -0.7),
+                    "radius": random.uniform(1.2, 2.4),
+                    "alpha": 0.95,
+                    "color": QColor("#ef4444") if random.random() < 0.70 else QColor("#f97316"),
+                })
+
+        # 3. Love: Floating bezier hearts drifting into thin air along sine-wave trails
+        elif self._funny_expression == "love":
+            self._lightning_arcs.clear()
+            if random.random() < 0.28 and len(self._particles) < 18:
+                spawn_x = cx + random.uniform(-18.0, 18.0)
+                self._particles.append({
+                    "type": "heart",
+                    "x": spawn_x,
+                    "base_x": spawn_x,
+                    "y": cy - 6.0,
+                    "vy": random.uniform(-1.3, -0.7),
+                    "size": random.uniform(7.0, 11.0),
+                    "alpha": 1.0,
+                    "sway_phase": random.uniform(0.0, math.pi * 2.0),
+                    "sway_freq": random.uniform(3.0, 5.5),
+                    "sway_amp": random.uniform(1.2, 2.4),
+                    "color": QColor("#e11d48") if random.random() < 0.65 else QColor("#fb7185"),
+                })
+
+        # Update and step all active particles
+        for i in range(len(self._particles) - 1, -1, -1):
+            p = self._particles[i]
+            if p["type"] == "confetti":
+                p["x"] += p["vx"]
+                p["y"] += p["vy"]
+                p["vy"] += 0.18  # gravity
+                p["vx"] *= 0.98  # air drag
+                p["rot"] += p["vrot"]
+                p["life"] -= dt
+                if p["life"] <= 0.0 or p["y"] > self.height() + 10:
+                    self._particles.pop(i)
+            elif p["type"] == "smoke":
+                p["x"] += p["vx"]
+                p["y"] += p["vy"]
+                p["radius"] += dt * 4.5
+                p["alpha"] -= dt * 0.45
+                if p["alpha"] <= 0.0:
+                    self._particles.pop(i)
+            elif p["type"] == "heart":
+                p["y"] += p["vy"]
+                p["sway_phase"] += dt * p["sway_freq"]
+                p["x"] = p["base_x"] + math.sin(p["sway_phase"]) * p["sway_amp"]
+                p["alpha"] -= dt * 0.48
+                if p["alpha"] <= 0.0 or p["y"] < -10:
+                    self._particles.pop(i)
+            elif p["type"] == "ember":
+                p["x"] += p["vx"]
+                p["y"] += p["vy"]
+                p["alpha"] -= dt * 0.65
+                p["radius"] = max(0.5, p["radius"] - dt * 0.5)
+                if p["alpha"] <= 0.0 or p["y"] < -10:
+                    self._particles.pop(i)
+
     # --- Tint Blending Helper ---
 
     def _get_effective_colors(self) -> Tuple[QColor, QColor, QColor, QColor]:
         """Blend lighting tint into eye and glow colors at paint time without writing to settings."""
+        # 1. Funny Expression Overrides (Always blueish eyes + expression-specific auras)
+        if self._funny_expression:
+            effective_eyes = QColor("#00e5ff")  # ALWAYS BLUEISH ACROSS ALL THEMES!
+
+            if self._funny_expression == "shock":
+                # Electric vibrant golden-yellow lightning aura
+                effective_glow = QColor(250, 204, 21, 235)
+            elif self._funny_expression == "annoyed":
+                # Intense angry fiery crimson red smolder aura
+                effective_glow = QColor(239, 68, 68, 240)
+            elif self._funny_expression == "love":
+                # Warm blooming romantic rose-pink
+                effective_glow = QColor(244, 63, 94, 230)
+            elif self._funny_expression == "wink":
+                # Electric celebratory sky-cyan
+                effective_glow = QColor(56, 189, 248, 225)
+            elif self._funny_expression == "derp":
+                # Cosmic cartoon purple
+                effective_glow = QColor(168, 85, 247, 225)
+            else:
+                effective_glow = self.color_glow
+
+            return self.color_body, self.color_details, effective_eyes, effective_glow
         if self._tint_amount <= 0.01:
             return self.color_body, self.color_details, self.color_eyes, self.color_glow
 
@@ -507,6 +677,10 @@ class SentiMascot(QWidget):
         # Pulse multiplier for glow
         pulse = 0.78 + 0.22 * math.sin(self._phase * 2.0)
 
+        # 1. Back-layer particles (back half of 3D perspective orbiting dizzy stars)
+        if self._funny_expression == "derp" and self._orb < 0.5:
+            self._paint_orbiting_stars(p, cx, cy + bob, in_front=False)
+
         # Center with squish and shake
         p.save()
         p.translate(cx + shake_x, cy + bob + shake_y)
@@ -534,6 +708,10 @@ class SentiMascot(QWidget):
 
         p.restore()
 
+        # 2. Front-layer particles & procedural overlays (front stars, lightning, hearts, confetti, smoke)
+        if self._orb < 0.5:
+            self._paint_front_particles(p, cx, cy + bob)
+
     def _paint_character(
         self,
         p: QPainter,
@@ -558,19 +736,7 @@ class SentiMascot(QWidget):
         body_rect = QRectF(bx, by, bw, bh)
         corner_r = bw * 0.36
 
-        # 1. Radiant Outer Aura Glow (Dynamic theme glow)
-        glow_radius = max(bw, bh) * 0.80
-        glow_grad = QRadialGradient(cx, cy, glow_radius)
-        glow_alpha = int(115 * pulse)
-        glow_grad.setColorAt(0.0, QColor(glow_c.red(), glow_c.green(), glow_c.blue(), glow_alpha))
-        glow_grad.setColorAt(0.40, QColor(glow_c.red(), glow_c.green(), glow_c.blue(), int(glow_alpha * 0.60)))
-        glow_grad.setColorAt(0.72, QColor(glow_c.red(), glow_c.green(), glow_c.blue(), int(glow_alpha * 0.20)))
-        glow_grad.setColorAt(1.0, QColor(glow_c.red(), glow_c.green(), glow_c.blue(), 0))
-        p.setPen(Qt.PenStyle.NoPen)
-        p.setBrush(glow_grad)
-        p.drawEllipse(QPointF(cx, cy), glow_radius, glow_radius)
-
-        # 2. Dynamic Theme Helmet Shell
+        # Dynamic Theme Helmet Shell (Clean, crisp, no rectangular outer glow)
         shell_grad = QLinearGradient(bx, by, bx, by + bh)
         shell_grad.setColorAt(0.0, body_c)
         bot_c = body_c.darker(118) if body_c.lightness() > 90 else body_c.lighter(130)
@@ -598,6 +764,17 @@ class SentiMascot(QWidget):
         p.setPen(QPen(QColor("#141720"), 1.0))
         p.setBrush(QColor("#07080a"))
         p.drawRoundedRect(visor_rect, vr, vr)
+
+        # Cheek Blush (for Love or shy expressions)
+        if self._blush_amount > 0.02:
+            blush_w = max(5.0, vw * 0.16)
+            blush_h = max(2.5, vh * 0.16)
+            blush_y = vy + vh * 0.70
+            blush_alpha = int(145 * self._blush_amount)
+            p.setPen(Qt.PenStyle.NoPen)
+            p.setBrush(QColor(244, 63, 94, blush_alpha))
+            p.drawEllipse(QPointF(vx + vw * 0.16, blush_y), blush_w, blush_h)
+            p.drawEllipse(QPointF(vx + vw * 0.84, blush_y), blush_w, blush_h)
 
         # 4. Glowing Eyes inside Visor
         self._paint_facial_features(p, cx, vy + vh * 0.5, vw, vh, eyes_c, pulse)
@@ -684,8 +861,8 @@ class SentiMascot(QWidget):
             return
 
         # Soft halo glow behind eyes
-        halo_r = max(eye_w, base_h) * 1.4
-        glow_alpha = int(55 * pulse)
+        halo_r = max(eye_w, base_h) * (1.75 if self._funny_expression else 1.4)
+        glow_alpha = int((105 if self._funny_expression else 55) * pulse)
         for ex, ey in ((left_eye_x, left_eye_y), (right_eye_x, right_eye_y)):
             halo = QRadialGradient(ex, ey, halo_r)
             halo.setColorAt(0.0, QColor(eyes_c.red(), eyes_c.green(), eyes_c.blue(), glow_alpha))
@@ -719,6 +896,218 @@ class SentiMascot(QWidget):
             p.drawEllipse(QPointF(right_eye_x - er * 0.3, right_eye_y - right_eye_h * 0.25), spec_r, spec_r)
             p.setBrush(eyes_c)
 
+        # Sharp anime angry eyebrows for annoyed expression
+        if self._funny_expression == "annoyed":
+            p.setPen(QPen(QColor("#ef4444"), 2.2, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap))
+            p.drawLine(QPointF(left_eye_x - er * 0.9, left_eye_y - eye_h * 0.90), QPointF(left_eye_x + er * 0.9, left_eye_y - eye_h * 0.40))
+            p.drawLine(QPointF(right_eye_x - er * 0.9, right_eye_y - eye_h * 0.40), QPointF(right_eye_x + er * 0.9, right_eye_y - eye_h * 0.90))
+
+    def _paint_orbiting_stars(self, p: QPainter, cx: float, cy: float, in_front: bool):
+        """Paint 3D inclined perspective orbiting cartoon stars (behind or in front of helmet)."""
+        p.save()
+        theta_base = self._phase * 5.0
+        rx = 26.0
+        ry = 8.5
+        head_y = cy - 16.0  # Orbit centered above the ceramic helmet
+
+        # 3 stars spaced evenly by 120 degrees
+        for i in range(3):
+            angle = theta_base + (i * 2.0 * math.pi / 3.0)
+            sin_val = math.sin(angle)
+            cos_val = math.cos(angle)
+            is_front = (sin_val >= 0.0)
+            if is_front != in_front:
+                continue
+
+            star_x = cx + cos_val * rx
+            star_y = head_y + sin_val * ry
+
+            # Depth perspective scale (0.70 at far back to 1.15 in front)
+            depth = 0.70 + 0.45 * ((sin_val + 1.0) / 2.0)
+            r_out = 5.6 * depth
+            r_in = 2.4 * depth
+
+            self._draw_star_shape(p, star_x, star_y, r_out, r_in, QColor("#fbbf24"))
+
+            # Tiny spark glow behind each star
+            spark_grad = QRadialGradient(star_x, star_y, r_out * 1.5)
+            spark_grad.setColorAt(0.0, QColor(254, 240, 138, int(160 * depth)))
+            spark_grad.setColorAt(1.0, QColor(254, 240, 138, 0))
+            p.setPen(Qt.PenStyle.NoPen)
+            p.setBrush(spark_grad)
+            p.drawEllipse(QPointF(star_x, star_y), r_out * 1.5, r_out * 1.5)
+
+        p.restore()
+
+    def _paint_front_particles(self, p: QPainter, cx: float, cy: float):
+        """Paint front-facing dynamic VFX particles, lightning plasma, confetti, and floating hearts."""
+        # 1. Front half of orbiting stars for derp
+        if self._funny_expression == "derp":
+            self._paint_orbiting_stars(p, cx, cy, in_front=True)
+
+        # 2. Procedural electric lightning plasma arcs for shock
+        if self._funny_expression == "shock" and self._lightning_arcs:
+            p.save()
+            for arc in self._lightning_arcs:
+                if len(arc) > 1:
+                    path = QPainterPath(arc[0])
+                    for pt in arc[1:]:
+                        path.lineTo(pt)
+                    # Outer electric neon yellow aura
+                    p.setPen(QPen(QColor(250, 204, 21, 180), 2.6, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.RoundJoin))
+                    p.drawPath(path)
+                    # Inner intense white-hot core
+                    p.setPen(QPen(QColor(255, 255, 255, 240), 1.1, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.RoundJoin))
+                    p.drawPath(path)
+            p.restore()
+
+        # 3. Dynamic active particles
+        for p_data in self._particles:
+            ptype = p_data.get("type")
+
+            if ptype == "confetti":
+                p.save()
+                p.translate(p_data["x"], p_data["y"])
+                p.rotate(p_data["rot"])
+                # 3D tumbling ribbon effect via vertical perspective scale
+                scale_y = math.cos(p_data["rot"] * 0.08)
+                p.scale(1.0, scale_y)
+                alpha = int(255 * min(1.0, max(0.0, p_data["life"] / 0.5)))
+                col = QColor(p_data["color"])
+                col.setAlpha(alpha)
+                p.setPen(Qt.PenStyle.NoPen)
+                p.setBrush(col)
+                p.drawRect(QRectF(-p_data["w"] / 2.0, -p_data["h"] / 2.0, p_data["w"], p_data["h"]))
+                p.restore()
+
+            elif ptype == "smoke":
+                rad = p_data["radius"]
+                alpha = int(255 * max(0.0, min(1.0, p_data["alpha"])))
+                if alpha > 0:
+                    grad = QRadialGradient(p_data["x"], p_data["y"], rad)
+                    grad.setColorAt(0.0, QColor(220, 220, 230, alpha))
+                    grad.setColorAt(0.6, QColor(180, 180, 195, int(alpha * 0.5)))
+                    grad.setColorAt(1.0, QColor(140, 140, 160, 0))
+                    p.setPen(Qt.PenStyle.NoPen)
+                    p.setBrush(grad)
+                    p.drawEllipse(QPointF(p_data["x"], p_data["y"]), rad, rad)
+
+            elif ptype == "heart":
+                alpha = max(0.0, min(1.0, p_data["alpha"]))
+                if alpha > 0.01:
+                    self._draw_heart_shape(p, p_data["x"], p_data["y"], p_data["size"], p_data["color"], alpha)
+
+            elif ptype == "ember":
+                alpha = int(255 * max(0.0, min(1.0, p_data["alpha"])))
+                if alpha > 0:
+                    p.save()
+                    c = QColor(p_data["color"])
+                    c.setAlpha(alpha)
+                    p.setPen(Qt.PenStyle.NoPen)
+                    p.setBrush(c)
+                    p.drawEllipse(QPointF(p_data["x"], p_data["y"]), p_data["radius"], p_data["radius"])
+                    p.restore()
+
+        # 4. Annoyed: Pulsing anime anger vein symbols (💢) popping at the temple
+        if self._funny_expression == "annoyed":
+            bw = max(40.0, min(self.width() * 0.70, 54.0))
+            bh = max(34.0, min(self.height() * 0.60, 46.0))
+            bx = cx - bw / 2.0
+            by = cy - bh / 2.0 + (self.height() * 0.03)
+
+            # Rapid irritated pulse
+            vein_pulse = 1.0 + 0.22 * math.sin(self._phase * 18.0)
+            self._draw_anger_vein_symbol(p, bx + bw * 0.86, by + 4.0, 7.5 * vein_pulse, alpha=1.0)
+
+            # Smaller secondary angry pop mark
+            vein_pulse_sub = 1.0 + 0.18 * math.cos(self._phase * 14.0)
+            self._draw_anger_vein_symbol(p, bx + bw * 0.96, by + 13.0, 5.0 * vein_pulse_sub, alpha=0.85)
+
+    def _draw_anger_vein_symbol(self, p: QPainter, cx: float, cy: float, size: float, alpha: float):
+        """Draw iconic comic / anime anger vein symbol (💢) centered at (cx, cy)."""
+        p.save()
+        p.translate(cx, cy)
+
+        # Glow halo behind the anger vein
+        glow = QRadialGradient(0, 0, size * 1.6)
+        glow.setColorAt(0.0, QColor(239, 68, 68, int(180 * alpha)))
+        glow.setColorAt(0.7, QColor(220, 38, 38, int(70 * alpha)))
+        glow.setColorAt(1.0, QColor(220, 38, 38, 0))
+        p.setPen(Qt.PenStyle.NoPen)
+        p.setBrush(glow)
+        p.drawEllipse(QPointF(0, 0), size * 1.6, size * 1.6)
+
+        r = size
+        pen_w = max(1.4, size * 0.26)
+        vein_color = QColor("#f87171")  # Bright crimson red
+        vein_color.setAlpha(int(255 * alpha))
+        p.setPen(QPen(vein_color, pen_w, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap))
+        p.setBrush(Qt.BrushStyle.NoBrush)
+
+        # 4 outward-curved arcs forming 💢
+        # Top arc
+        path_ht = QPainterPath()
+        path_ht.moveTo(-r, -r * 0.35)
+        path_ht.quadTo(0, -r * 0.85, r, -r * 0.35)
+        p.drawPath(path_ht)
+
+        # Bottom arc
+        path_hb = QPainterPath()
+        path_hb.moveTo(-r, r * 0.35)
+        path_hb.quadTo(0, r * 0.85, r, r * 0.35)
+        p.drawPath(path_hb)
+
+        # Vertical left arc
+        path_vl = QPainterPath()
+        path_vl.moveTo(-r * 0.35, -r)
+        path_vl.quadTo(-r * 0.85, 0, -r * 0.35, r)
+        p.drawPath(path_vl)
+
+        # Vertical right arc
+        path_vr = QPainterPath()
+        path_vr.moveTo(r * 0.35, -r)
+        path_vr.quadTo(r * 0.85, 0, r * 0.35, r)
+        p.drawPath(path_vr)
+
+        p.restore()
+
+    def _draw_star_shape(self, p: QPainter, cx: float, cy: float, r_out: float, r_in: float, color: QColor):
+        """Draw a 5-pointed star centered at (cx, cy)."""
+        path = QPainterPath()
+        pts = 5
+        angle_step = math.pi / pts
+        curr_angle = -math.pi / 2.0
+        for i in range(pts * 2):
+            r = r_out if i % 2 == 0 else r_in
+            px = cx + math.cos(curr_angle) * r
+            py = cy + math.sin(curr_angle) * r
+            if i == 0:
+                path.moveTo(px, py)
+            else:
+                path.lineTo(px, py)
+            curr_angle += angle_step
+        path.closeSubpath()
+        p.setPen(QPen(QColor(255, 255, 255, 180), 0.8))
+        p.setBrush(color)
+        p.drawPath(path)
+
+    def _draw_heart_shape(self, p: QPainter, cx: float, cy: float, size: float, color: QColor, alpha: float):
+        """Draw a smooth cubic bezier heart centered at (cx, cy)."""
+        p.save()
+        p.translate(cx, cy)
+        s = size / 16.0
+        p.scale(s, s)
+        path = QPainterPath()
+        path.moveTo(0, 2)
+        path.cubicTo(-5, -6, -10, 0, 0, 9)
+        path.cubicTo(10, 0, 5, -6, 0, 2)
+        c = QColor(color)
+        c.setAlpha(int(255 * alpha))
+        p.setPen(Qt.PenStyle.NoPen)
+        p.setBrush(c)
+        p.drawPath(path)
+        p.restore()
+
     def _paint_orb(
         self,
         p: QPainter,
@@ -733,17 +1122,6 @@ class SentiMascot(QWidget):
         """Paint the compact, polished Orb form (~72px)."""
         dia = min(self.width(), self.height()) - 12.0
         radius = dia / 2.0
-
-        # Outer aura
-        glow_radius = radius * 1.35
-        glow = QRadialGradient(cx, cy, glow_radius)
-        glow_alpha = int(50 * pulse)
-        glow.setColorAt(0.0, QColor(glow_c.red(), glow_c.green(), glow_c.blue(), glow_alpha))
-        glow.setColorAt(0.7, QColor(glow_c.red(), glow_c.green(), glow_c.blue(), int(glow_alpha * 0.3)))
-        glow.setColorAt(1.0, QColor(glow_c.red(), glow_c.green(), glow_c.blue(), 0))
-        p.setPen(Qt.PenStyle.NoPen)
-        p.setBrush(glow)
-        p.drawEllipse(QPointF(cx, cy), glow_radius, glow_radius)
 
         # Outer shell ring with metallic/pearly gradient
         shell_grad = QLinearGradient(cx - radius, cy - radius, cx + radius, cy + radius)

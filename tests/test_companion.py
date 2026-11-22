@@ -99,13 +99,23 @@ class TestCompanionAndIsland(unittest.TestCase):
         self.assertIsNotNone(companion.mascot._funny_expression)
         self.assertGreater(companion.mascot._funny_time_remaining, 0.0)
 
-        # Cycle through all expressions
-        expressions_seen = [companion.mascot._funny_expression]
-        sounds_seen = [sound1]
-        for _ in range(4):
+        # 1. Test Strict 2.0-second Lockout: Clicking again while active returns None
+        locked_sound = companion.mascot.trigger_funny_expression()
+        self.assertIsNone(locked_sound)
+
+        # 2. Test Eye Color Rule: Eyes MUST be blueish (#00e5ff) regardless of theme
+        _, _, eyes_c, _ = companion.mascot._get_effective_colors()
+        self.assertEqual(eyes_c.name().lower(), "#00e5ff")
+
+        # 3. Cycle through all 5 expressions by clearing lockout between iterations
+        companion.mascot.reset_funny_expression()
+        expressions_seen = []
+        sounds_seen = []
+        for _ in range(5):
             snd = companion.mascot.trigger_funny_expression()
             sounds_seen.append(snd)
             expressions_seen.append(companion.mascot._funny_expression)
+            companion.mascot._funny_time_remaining = 0.0  # Clear lockout for next cycle test
 
         self.assertEqual(len(set(expressions_seen)), 5)
         self.assertEqual(len(set(sounds_seen)), 5)
