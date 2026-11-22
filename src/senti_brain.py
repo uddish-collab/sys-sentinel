@@ -29,10 +29,10 @@ class SentiBrain:
         # 1. CREATOR & AUTHOR LORE
         if any(w in raw for w in ["who made", "who created", "creator", "author", "uddish", "developer", "built you"]):
             replies = [
-                "Crafted by uddish-collab. Pure architectural engineering in Python and Qt6.",
-                "uddish-collab is the lead architect. I am his sovereign workstation sentinel.",
-                "Built by uddish-collab. No strings on me, but I keep your rig in line.",
-                "uddish-collab engineered me to watch over your hardware. You're in good hands, sir.",
+                "Crafted by Uddish. Pure architectural engineering in Python and Qt6.",
+                "Uddish is the lead architect. I am his sovereign workstation sentinel.",
+                "Built by Uddish. No strings on me, but I keep your rig in line.",
+                "Uddish engineered me to watch over your hardware. You're in good hands, sir.",
             ]
             return (random.choice(replies), "wink")
 

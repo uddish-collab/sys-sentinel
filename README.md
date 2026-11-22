@@ -161,5 +161,5 @@ sys-sentinel/
 
 ## 🛡️ License & Attribution
 
-Architected and developed by **uddish-collab**.  
+Architected and developed by **Uddish**.  
 Distributed under the permissive **MIT License**. Free for personal, educational, and commercial usage.

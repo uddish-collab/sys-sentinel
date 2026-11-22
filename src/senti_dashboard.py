@@ -1091,7 +1091,7 @@ class SentiDashboardWindow(QWidget):
 
         name_row = QHBoxLayout()
         name_row.setSpacing(8)
-        lbl_username = QLabel("uddish-collab")
+        lbl_username = QLabel("Uddish")
         lbl_username.setStyleSheet("color: #f8fafc; font-size: 15px; font-weight: 800; font-family: 'Segoe UI', Consolas;")
         name_row.addWidget(lbl_username)
 
@@ -1176,7 +1176,7 @@ class SentiDashboardWindow(QWidget):
             lic_grid.addWidget(v, r, 1)
 
         _lic_row(0, "STANDARD", "MIT Open Source License")
-        _lic_row(1, "COPYRIGHT", "© 2026 uddish-collab")
+        _lic_row(1, "COPYRIGHT", "© 2026 Uddish")
         _lic_row(2, "GRANT", "Use, modify, distribute, sublicense freely")
         _lic_row(3, "WARRANTY", "Provided 'as is' without limitation")
 

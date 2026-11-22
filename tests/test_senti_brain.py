@@ -30,7 +30,7 @@ class TestSentiBrain(unittest.TestCase):
 
     def test_creator_lore(self):
         reply, mood = self.brain.respond("who created you?")
-        self.assertIn("uddish-collab", reply)
+        self.assertIn("Uddish", reply)
         self.assertEqual(mood, "wink")
 
     def test_senti_identity(self):

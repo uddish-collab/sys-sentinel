@@ -863,7 +863,7 @@ class SentiApp:
 def main():
     setup_crash_logging()
     app = QApplication(sys.argv)
-    app.setOrganizationName("Sentinel")
+    app.setOrganizationName("Uddish")
     app.setApplicationName("SENTI")
     app.setApplicationDisplayName("Senti")
 

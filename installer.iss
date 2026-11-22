@@ -3,7 +3,7 @@
 
 #define MyAppName "SYS-SENTINEL"
 #define MyAppVersion "1.0.0"
-#define MyAppPublisher "uddish-collab"
+#define MyAppPublisher "Uddish"
 #define MyAppURL "https://github.com/uddish-collab/sys-sentinel"
 #define MyAppExeName "SENTI.exe"
 
