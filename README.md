@@ -27,7 +27,7 @@
 - **5 Expressive Reaction States**: Single-tap funny emotional reactions (Shocked, Annoyed, Wink, Loved, Dizzy) with mood contour glows, procedural physics VFX (lightning, smoke, hearts, stars), and polyphonic acoustic feedback.
 - **Deep 8-Panel Diagnostic Matrix**: Dedicated telemetry dashboards for CPU (per-core load and live sparkline graphing), RAM, GPU, Network, Storage, Thermals, Battery, and Workstation Settings.
 - **Senti Comms AI Terminal**: Natural-language telemetry interrogation console for instant diagnostic evaluations and creator lore.
-- **Zero-Lag Architecture**: Optimized `--onedir` distribution without temp-directory extraction delays.
+- **Zero-Lag Portable Architecture**: Standalone single-file executable (`SENTI.exe`) with zero unzipping, extraction delays, or installation required.
 
 ---
 
@@ -66,9 +66,8 @@
 
 To run Senti as a standalone Windows app without installing Python or Git:
 
-1. Download the latest compiled distribution: **[SENTI-v1.0.0-windows-x64.zip](https://github.com/uddish-collab/sys-sentinel/releases/download/v1.0.0/SENTI-v1.0.0-windows-x64.zip)**.
-2. Extract the ZIP anywhere on your system.
-3. Double-click **`SENTI.exe`** to launch!
+1. Download the latest compiled executable: **[SENTI.exe (Standalone Windows Executable)](https://github.com/uddish-collab/sys-sentinel/releases/download/v1.0.0/SENTI.exe)**.
+2. Double-click **`SENTI.exe`** to launch! No unzipping, extraction, installation, or dependencies required.
 
 ---
 
@@ -104,15 +103,15 @@ py src/senti_app.py
 
 ## 📦 Building Executable & Installer
 
-SYS-SENTINEL features a unified build script that compiles the standalone distribution and packages the Windows installer:
+SYS-SENTINEL features a unified build script that compiles the standalone executable and packages the Windows installer:
 
 ```bash
-# Build standalone distribution (dist\SENTI\) + Windows installer (dist\installer\)
+# Build standalone executable (dist\SENTI.exe) + Windows installer (dist\installer\)
 build.bat
 
 # Optional flags:
-build.bat --exe        # Compiles PyInstaller distribution only
-build.bat --installer  # Packages existing distribution into Inno Setup installer
+build.bat --exe        # Compiles standalone PyInstaller executable only
+build.bat --installer  # Packages existing executable into Inno Setup installer
 ```
 
 > **SmartScreen Notice**: Because this build is open-source and unsigned, Windows SmartScreen may present a routine warning on first launch. Click **More info** → **Run anyway** to proceed.
@@ -159,7 +158,7 @@ sys-sentinel/
 ├── SENTI.spec               # Optimized PyInstaller distribution specification
 ├── file_version_info.txt    # Windows PE version and copyright resource definition
 ├── installer.iss            # Inno Setup Windows installer script
-├── build.bat                # Unified compiler for onedir binaries & setup installer
+├── build.bat                # Unified compiler for standalone binary & setup installer
 ├── requirements.txt         # Pinned core runtime dependencies
 ├── requirements-dev.txt     # Packaging dependencies
 ├── LICENSE                  # MIT Open Source License (Uddish)

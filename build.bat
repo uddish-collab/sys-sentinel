@@ -56,7 +56,7 @@ if "%BUILD_EXE%"=="1" (
         exit /b 1
     )
 
-    echo [SUCCESS] Standalone distribution created in dist\SENTI\
+    echo [SUCCESS] Standalone single executable created: dist\SENTI.exe
 )
 
 REM -------------------------------------------------------------
@@ -66,8 +66,8 @@ if "%BUILD_INST%"=="1" (
     echo.
     echo [PHASE 2/2] Packaging Windows Setup Wizard...
 
-    if not exist "dist\SENTI\SENTI.exe" (
-        echo [ERROR] dist\SENTI\SENTI.exe not found. Build executable first.
+    if not exist "dist\SENTI.exe" (
+        echo [ERROR] dist\SENTI.exe not found. Build executable first.
         exit /b 1
     )
 

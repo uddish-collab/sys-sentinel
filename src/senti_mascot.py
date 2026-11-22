@@ -729,8 +729,12 @@ class SentiMascot(QWidget):
         del details_c
 
         # Body bounds (sleek ceramic squircle helmet)
-        bw = max(40.0, min(w * 0.70, 54.0))
-        bh = max(34.0, min(h * 0.60, 46.0))
+        if w <= 86:
+            bw = max(40.0, min(w * 0.70, 54.0))
+            bh = max(34.0, min(h * 0.60, 46.0))
+        else:
+            bw = w * 0.78
+            bh = h * 0.68
         bx = cx - bw / 2.0
         by = cy - bh / 2.0 + (h * 0.03)
         body_rect = QRectF(bx, by, bw, bh)
@@ -1144,7 +1148,7 @@ class SentiMascot(QWidget):
         pulse: float,
     ):
         """Paint the compact, polished Orb form (~72px)."""
-        dia = min(self.width(), self.height()) - 12.0
+        dia = min(self.width(), self.height()) * 0.90
         radius = dia / 2.0
 
         # Outer shell ring with metallic/pearly gradient
