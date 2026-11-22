@@ -208,6 +208,9 @@ class CompanionWindow(QWidget):
             self.mascot.trigger_squish()
             self.app_controller.play("click")
             event.accept()
+        elif event.button() == Qt.MouseButton.MiddleButton:
+            self.toggle_orb()
+            event.accept()
         elif event.button() == Qt.MouseButton.RightButton:
             self._show_context_menu(event.globalPosition().toPoint())
             event.accept()

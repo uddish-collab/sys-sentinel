@@ -66,6 +66,22 @@ class TestDashboardAndSubsystems(unittest.TestCase):
         self.assertEqual(dash.tabs.currentIndex(), 7)
         self.assertIn("SETTINGS", dash.lbl_title.text())
 
+        # Test Instructions Pop-Out Drawer and position restoration
+        self.assertFalse(dash.instructions_panel.isVisible())
+        self.assertEqual(dash.width(), 720)
+
+        initial_pos = QPoint(300, 200)
+        dash.move(initial_pos)
+
+        dash.toggle_instructions_drawer()
+        self.assertTrue(dash.instructions_panel.isVisible())
+        self.assertEqual(dash.width(), 1180)
+
+        dash.toggle_instructions_drawer()
+        self.assertFalse(dash.instructions_panel.isVisible())
+        self.assertEqual(dash.width(), 720)
+        self.assertEqual(dash.pos(), initial_pos)
+
         dash.close()
 
     def test_dashboard_telemetry_update(self):

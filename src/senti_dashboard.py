@@ -32,6 +32,7 @@ from PySide6.QtGui import (
     QGuiApplication,
 )
 from PySide6.QtWidgets import (
+    QApplication,
     QWidget,
     QVBoxLayout,
     QHBoxLayout,
@@ -499,13 +500,21 @@ class SentiDashboardWindow(QWidget):
         # Data cache & Brain
         self._telemetry: Dict[str, Any] = {}
         self.brain = SentiBrain()
+        self._pre_instructions_pos = None
 
         self._init_ui()
 
     def _init_ui(self):
-        root = QVBoxLayout(self)
+        root = QHBoxLayout(self)
         root.setContentsMargins(14, 12, 14, 12)
-        root.setSpacing(10)
+        root.setSpacing(12)
+
+        # Left Column: Subsystem View (Fixed 692px width to preserve exact layout)
+        self.main_column = QWidget()
+        self.main_column.setFixedWidth(692)
+        main_lay = QVBoxLayout(self.main_column)
+        main_lay.setContentsMargins(0, 0, 0, 0)
+        main_lay.setSpacing(10)
 
         # Top Bar: Minimalist Luxury Brand Breadcrumb + Close Button
         top_bar = QHBoxLayout()
@@ -534,7 +543,7 @@ class SentiDashboardWindow(QWidget):
         """)
         btn_close.clicked.connect(self.close_panel)
         top_bar.addWidget(btn_close)
-        root.addLayout(top_bar)
+        main_lay.addLayout(top_bar)
 
         # Subsystem Panel Container (Tab bar completely hidden so only the selected view appears)
         self.tabs = QTabWidget(self)
@@ -568,7 +577,13 @@ class SentiDashboardWindow(QWidget):
         self.tabs.addTab(self.tab_sys, "SYSTEM")
         self.tabs.addTab(self.tab_settings, "SETTINGS")
 
-        root.addWidget(self.tabs)
+        main_lay.addWidget(self.tabs)
+        root.addWidget(self.main_column)
+
+        # Right Column: Instructions Pop-Out Drawer (Hidden by default)
+        self.instructions_panel = self._build_instructions_panel()
+        self.instructions_panel.hide()
+        root.addWidget(self.instructions_panel)
 
     # --- TAB 1: CPU (Live CPU Monitoring) ---
     def _build_cpu_tab(self) -> QWidget:
@@ -1190,9 +1205,39 @@ class SentiDashboardWindow(QWidget):
         c2_lay.setContentsMargins(16, 14, 16, 14)
         c2_lay.setSpacing(12)
 
+        c2_hdr_row = QHBoxLayout()
         lbl_c2_header = QLabel("WORKSTATION THEME MATRIX")
         lbl_c2_header.setStyleSheet("color: #8c9dbd; font-size: 11px; font-weight: 700; letter-spacing: 0.5px;")
-        c2_lay.addWidget(lbl_c2_header)
+        c2_hdr_row.addWidget(lbl_c2_header)
+        c2_hdr_row.addStretch()
+
+        btn_instructions = QPushButton("●  INSTRUCTIONS")
+        btn_instructions.setFixedHeight(24)
+        btn_instructions.setCursor(Qt.CursorShape.PointingHandCursor)
+        btn_instructions.setStyleSheet("""
+            QPushButton {
+                background: #12151e;
+                color: #94a3b8;
+                font-size: 10px;
+                font-weight: 700;
+                letter-spacing: 0.8px;
+                border: 1px solid #232938;
+                border-radius: 4px;
+                padding: 0px 12px;
+            }
+            QPushButton:hover {
+                background: #181d2a;
+                color: #38bdf8;
+                border: 1px solid #38bdf8;
+            }
+            QPushButton:pressed {
+                background: #0d1017;
+                color: #0284c7;
+            }
+        """)
+        btn_instructions.clicked.connect(self.toggle_instructions_drawer)
+        c2_hdr_row.addWidget(btn_instructions)
+        c2_lay.addLayout(c2_hdr_row)
 
         dial_row = QHBoxLayout()
         dial_row.setSpacing(24)
@@ -1739,9 +1784,196 @@ class SentiDashboardWindow(QWidget):
             return None
         return self._active_tab_name
 
+    def toggle_instructions_drawer(self):
+        """Toggle the right-side User Guide & Instructions pop-out drawer."""
+        if hasattr(self, "instructions_panel") and self.instructions_panel.isVisible():
+            self.instructions_panel.hide()
+            self.setFixedSize(720, 570)
+            self.resize(720, 570)
+            if getattr(self, "_pre_instructions_pos", None) is not None:
+                self.move(self._pre_instructions_pos)
+                self._pre_instructions_pos = None
+        else:
+            self._pre_instructions_pos = self.pos()
+            self.instructions_panel.show()
+            target_w = 1180
+            screen = QApplication.screenAt(self.geometry().center()) or QApplication.primaryScreen()
+            if screen:
+                screen_geo = screen.availableGeometry()
+                if self.x() + target_w > screen_geo.right() - 10:
+                    new_x = max(screen_geo.left() + 10, screen_geo.right() - target_w - 10)
+                    self.move(new_x, self.y())
+            self.setFixedSize(target_w, 570)
+            self.resize(target_w, 570)
+        self.update()
+
+    def _build_instructions_panel(self) -> QWidget:
+        panel = QFrame()
+        panel.setFixedWidth(440)
+        panel.setStyleSheet("""
+            QFrame#InstructionsPanelRoot {
+                background: #06070a;
+                border: 1px solid #161922;
+                border-radius: 8px;
+            }
+            QLabel {
+                border: none;
+                background: transparent;
+            }
+        """)
+        panel.setObjectName("InstructionsPanelRoot")
+        panel_lay = QVBoxLayout(panel)
+        panel_lay.setContentsMargins(18, 14, 18, 14)
+        panel_lay.setSpacing(12)
+
+        # Header bar
+        hdr_row = QHBoxLayout()
+        lbl_title = QLabel("SENTINEL  ·  INSTRUCTIONS")
+        lbl_title.setStyleSheet("color: #38bdf8; font-size: 11px; font-weight: 700; letter-spacing: 2px;")
+        hdr_row.addWidget(lbl_title)
+        hdr_row.addStretch()
+
+        btn_close = QPushButton("CLOSE  ✕")
+        btn_close.setFixedHeight(22)
+        btn_close.setCursor(Qt.CursorShape.PointingHandCursor)
+        btn_close.setStyleSheet("""
+            QPushButton {
+                background: #0f121a;
+                color: #8c9dbd;
+                font-size: 9px;
+                font-weight: 700;
+                letter-spacing: 0.5px;
+                border: 1px solid #1e2433;
+                border-radius: 4px;
+                padding: 0px 10px;
+            }
+            QPushButton:hover {
+                background: #181d2a;
+                color: #ffffff;
+                border-color: #38bdf8;
+            }
+        """)
+        btn_close.clicked.connect(self.toggle_instructions_drawer)
+        hdr_row.addWidget(btn_close)
+        panel_lay.addLayout(hdr_row)
+
+        # Hairline divider
+        div = QFrame()
+        div.setFixedHeight(1)
+        div.setStyleSheet("background: #161922; border: none;")
+        panel_lay.addWidget(div)
+
+        # Scroll Area with custom 3D luxury cyan scrollbar
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.Shape.NoFrame)
+        scroll.setStyleSheet("""
+            QScrollArea {
+                border: none;
+                background: transparent;
+            }
+            QScrollBar:vertical {
+                background: #06070a;
+                width: 6px;
+                border-radius: 3px;
+                margin: 2px 0 2px 0;
+            }
+            QScrollBar::handle:vertical {
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #0ea5e9, stop:1 #0284c7);
+                min-height: 32px;
+                border-radius: 3px;
+            }
+            QScrollBar::handle:vertical:hover {
+                background: qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 #38bdf8, stop:1 #0284c7);
+            }
+            QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
+                height: 0px;
+                border: none;
+                background: none;
+            }
+            QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {
+                background: none;
+            }
+        """)
+
+        container = QWidget()
+        container.setStyleSheet("background: transparent;")
+        c_lay = QVBoxLayout(container)
+        c_lay.setContentsMargins(0, 4, 10, 4)
+        c_lay.setSpacing(16)
+
+        def add_instruction_section(category: str, color: str, items: list):
+            lbl_cat = QLabel(category)
+            lbl_cat.setStyleSheet(f"color: {color}; font-size: 10px; font-weight: 800; letter-spacing: 1.5px;")
+            c_lay.addWidget(lbl_cat)
+
+            for action, desc in items:
+                row = QLabel(f"""
+                    <div style="line-height: 1.45; margin-bottom: 2px;">
+                        <span style="color: #f1f5f9; font-weight: 700; font-size: 11px;">• {action}</span><br>
+                        <span style="color: #8c9dbd; font-size: 11px; padding-left: 12px;">{desc}</span>
+                    </div>
+                """)
+                row.setWordWrap(True)
+                row.setTextFormat(Qt.TextFormat.RichText)
+                c_lay.addWidget(row)
+
+        # 1. COMPANION INTERACTION & EMOTIONS
+        add_instruction_section("COMPANION INTERACTION & EMOTIONS", "#38bdf8", [
+            ("Click Senti (Docked in Island)",
+             "Triggers expressive emotional reactions (Shocked, Annoyed, Wink, Loved, Dizzy) with synthesized audio feedback and physics VFX. Governed by a 2.0-second cooldown gate to ensure animations complete smoothly."),
+            ("Left-Click & Drag (Undock to Desktop)",
+             "Pulls Senti out of his top Island nest into a free-floating companion. Position him anywhere across your screens for continuous desktop companionship."),
+            ("Double-Click Floating Companion (Recall to Island)",
+             "Engages automated home navigation, smoothly flying Senti across your desktop back into the top Dynamic Island dock.")
+        ])
+
+        # 2. COMPACT ORB & TRAY SHORTCUTS
+        add_instruction_section("COMPACT ORB & TRAY SHORTCUTS", "#a855f7", [
+            ("Middle-Click Floating Companion (Desktop Orb Mode)",
+             "Morphs the full robot body into a high-density, minimalist metallic Orb. Designed for zero-distraction monitoring when screen real estate is limited."),
+            ("Double-Click Desktop Orb (Restore Companion)",
+             "Expands the compact Orb back into the fully articulated Senti astronaut avatar."),
+            ("Single-Click Floating Senti / Orb (Hide to Tray)",
+             "Instantly minimizes Senti into the Windows Taskbar Notification Area (System Tray). Click the tray icon at any time to summon him back."),
+            ("Right-Click Senti / Desktop Orb (Quick Context Menu)",
+             "Opens a context menu to toggle Orb mode, launch telemetry dashboards, recall Senti to the Island, or safely quit.")
+        ])
+
+        # 3. DYNAMIC ISLAND & TELEMETRY
+        add_instruction_section("DYNAMIC ISLAND & TELEMETRY", "#22c55e", [
+            ("Cursor Proximity Hover (Procedural Gaze Tracking)",
+             "Move your cursor across the 8 telemetry pills (CPU, RAM, GPU, NET, DISK, TEMP, BAT, CONFIG). Senti turns his gaze to follow your cursor, accompanied by harmonic acoustic chimes."),
+            ("Click Any Telemetry Metric (Deep Diagnostics)",
+             "Opens the dedicated real-time hardware diagnostics dashboard for that subsystem, displaying live load graphs, memory allocation, and performance metrics."),
+            ("Click Config / Set Pill (Settings & Manual)",
+             "Opens this Command Matrix window to adjust themes, interact via COM-link, or reference this instructions guide.")
+        ])
+
+        # 4. THEME MATRIX & COMMAND COMMS
+        add_instruction_section("THEME MATRIX & COMMAND COMMS", "#f59e0b", [
+            ("Rotary Theme Dial (Rotate to Switch LED Spectrum)",
+             "Rotate the tactile dial in Settings to cycle through 5 workstation themes (Cyberpunk Cyan, Toxic Green, Solar Flare, Neon Violet, Crimson Void). Updates all dashboard accents, Island illumination, and Senti's LED suit trim."),
+            ("Senti Comms Console (Telemetry Intelligence Terminal)",
+             "Type natural-language queries into the terminal (e.g., asking about CPU load, memory usage, GPU thermals, system health, or creator details) and press TRANSMIT ↵ or Enter for instantaneous diagnostic evaluation and companion dialogue.")
+        ])
+
+        c_lay.addStretch()
+        scroll.setWidget(container)
+        panel_lay.addWidget(scroll)
+
+        return panel
+
     def close_panel(self):
         self._active_tab_name = None
         self.flush_comm_link_chat()
+        if hasattr(self, "instructions_panel") and self.instructions_panel.isVisible():
+            self.instructions_panel.hide()
+            self.setFixedSize(720, 570)
+            self.resize(720, 570)
+            if getattr(self, "_pre_instructions_pos", None) is not None:
+                self.move(self._pre_instructions_pos)
+                self._pre_instructions_pos = None
         self.update()
         self.closed.emit()
         self._fade_anim.stop()
@@ -1761,6 +1993,13 @@ class SentiDashboardWindow(QWidget):
     def closeEvent(self, event):
         self._active_tab_name = None
         self.flush_comm_link_chat()
+        if hasattr(self, "instructions_panel") and self.instructions_panel.isVisible():
+            self.instructions_panel.hide()
+            self.setFixedSize(720, 570)
+            self.resize(720, 570)
+            if getattr(self, "_pre_instructions_pos", None) is not None:
+                self.move(self._pre_instructions_pos)
+                self._pre_instructions_pos = None
         self.update()
         self.closed.emit()
         super().closeEvent(event)
@@ -1768,6 +2007,13 @@ class SentiDashboardWindow(QWidget):
     def hideEvent(self, event):
         self._active_tab_name = None
         self.flush_comm_link_chat()
+        if hasattr(self, "instructions_panel") and self.instructions_panel.isVisible():
+            self.instructions_panel.hide()
+            self.setFixedSize(720, 570)
+            self.resize(720, 570)
+            if getattr(self, "_pre_instructions_pos", None) is not None:
+                self.move(self._pre_instructions_pos)
+                self._pre_instructions_pos = None
         self.update()
         self.closed.emit()
         super().hideEvent(event)
