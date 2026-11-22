@@ -237,7 +237,7 @@ class RotaryThemeDial(QWidget):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setFixedSize(130, 130)
+        self.setFixedSize(130, 116)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
         self._current_index = 0
         self._angle = 150.0  # Angle in degrees (150° to 390°)
@@ -302,7 +302,7 @@ class RotaryThemeDial(QWidget):
         event.accept()
 
     def _handle_mouse(self, pos: QPointF):
-        cx, cy = self.width() / 2.0, self.height() / 2.0
+        cx, cy = self.width() / 2.0, 65.0
         dx = pos.x() - cx
         dy = pos.y() - cy
         rad = math.atan2(dy, dx)
@@ -330,7 +330,7 @@ class RotaryThemeDial(QWidget):
         try:
             p.setRenderHint(QPainter.RenderHint.Antialiasing)
             p.setRenderHint(QPainter.RenderHint.TextAntialiasing)
-            cx, cy = self.width() / 2.0, self.height() / 2.0
+            cx, cy = self.width() / 2.0, 65.0
             cur_theme = THEME_DATA[self._current_index]
             accent_col = QColor(cur_theme["accent"])
 
@@ -1203,8 +1203,8 @@ class SentiDashboardWindow(QWidget):
             }
         """)
         c2_lay = QVBoxLayout(c2)
-        c2_lay.setContentsMargins(16, 14, 16, 14)
-        c2_lay.setSpacing(12)
+        c2_lay.setContentsMargins(16, 12, 16, 12)
+        c2_lay.setSpacing(6)
 
         c2_hdr_row = QHBoxLayout()
         lbl_c2_header = QLabel("WORKSTATION THEME MATRIX")
@@ -1299,7 +1299,7 @@ class SentiDashboardWindow(QWidget):
         dial_row = QHBoxLayout()
         dial_row.setSpacing(24)
 
-        # 1. Rotary Dial
+        # 1. Rotary Dial (Floating aesthetic with subtle upward elevation)
         dial = RotaryThemeDial()
 
         init_idx = 0
@@ -1310,7 +1310,13 @@ class SentiDashboardWindow(QWidget):
                 break
 
         dial.set_theme_index(init_idx, animate=False)
-        dial_row.addWidget(dial)
+
+        dial_col = QVBoxLayout()
+        dial_col.setContentsMargins(0, 0, 0, 0)
+        dial_col.setSpacing(0)
+        dial_col.addWidget(dial, alignment=Qt.AlignmentFlag.AlignTop)
+        dial_col.addSpacing(10)
+        dial_row.addLayout(dial_col)
 
         # 2. Information & Controls (Channel, Theme Heading, and Navigation Buttons neatly beside it)
         info_col = QVBoxLayout()
