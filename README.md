@@ -5,7 +5,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-1.0.0-blue.svg?style=flat-square" alt="Version"/>
+  <a href="https://github.com/uddish-collab/sys-sentinel/releases/latest"><img src="https://img.shields.io/github/v/release/uddish-collab/sys-sentinel?style=flat-square&color=38bdf8" alt="Latest Release"/></a>
   <img src="https://img.shields.io/badge/python-3.10+-3776AB.svg?style=flat-square&logo=python&logoColor=white" alt="Python"/>
   <img src="https://img.shields.io/badge/GUI-PySide6%20%2F%20Qt6-41CD52.svg?style=flat-square&logo=qt&logoColor=white" alt="Qt6"/>
   <img src="https://img.shields.io/badge/platform-Windows%2010%20%7C%2011-0078D6.svg?style=flat-square&logo=windows&logoColor=white" alt="Platform"/>
@@ -62,7 +62,17 @@
 
 ---
 
-## 🚀 Getting Started
+## ⚡ Quick Download (No Python Required)
+
+To run Senti as a standalone Windows app without installing Python or Git:
+
+1. Download the latest compiled distribution: **[SENTI-v1.0.0-windows-x64.zip](https://github.com/uddish-collab/sys-sentinel/releases/download/v1.0.0/SENTI-v1.0.0-windows-x64.zip)**.
+2. Extract the ZIP anywhere on your system.
+3. Double-click **`SENTI.exe`** to launch!
+
+---
+
+## 🚀 Developer Setup
 
 ### 1. Prerequisites
 - **Windows 10 or 11** (64-bit)
