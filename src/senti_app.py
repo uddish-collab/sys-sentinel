@@ -4,13 +4,52 @@ Polished Windows 10/11 desktop companion featuring the animated SENTI mascot,
 minimalist black glass top island, startup greeting wave, and multi-click gestures.
 """
 
+import datetime
 import math
 import os
 import random
 import signal
 import sys
 import tempfile
+import traceback
 from typing import Optional, Dict
+
+__version__ = "1.0.0"
+
+
+def setup_crash_logging():
+    """Write unhandled exceptions to %LOCALAPPDATA%\\Sentinel\\logs\\crash.log."""
+    local_app_data = os.environ.get("LOCALAPPDATA", os.path.expanduser("~"))
+    log_dir = os.path.join(local_app_data, "Sentinel", "logs")
+    try:
+        os.makedirs(log_dir, exist_ok=True)
+    except Exception:
+        pass
+    log_file = os.path.join(log_dir, "crash.log")
+
+    def handle_exception(exc_type, exc_value, exc_traceback):
+        if issubclass(exc_type, KeyboardInterrupt):
+            sys.__excepthook__(exc_type, exc_value, exc_traceback)
+            return
+
+        timestamp = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        tb_lines = "".join(traceback.format_exception(exc_type, exc_value, exc_traceback))
+        log_entry = (
+            f"\n{'=' * 60}\n"
+            f"CRASH REPORT - {timestamp}\n"
+            f"Version: {__version__} | Platform: {sys.platform} | Python: {sys.version.split()[0]}\n"
+            f"{'=' * 60}\n"
+            f"{tb_lines}\n"
+        )
+        try:
+            with open(log_file, "a", encoding="utf-8") as f:
+                f.write(log_entry)
+        except Exception:
+            pass
+
+        sys.__excepthook__(exc_type, exc_value, exc_traceback)
+
+    sys.excepthook = handle_exception
 
 # Ensure src/ directory is available on sys.path
 _SRC_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -423,6 +462,18 @@ class CompanionWindow(QWidget):
         act_control.triggered.connect(self.app_controller.open_control_window)
         menu.addAction(act_control)
 
+        # Launch at Startup
+        act_autostart = QAction("Start with Windows", self)
+        act_autostart.setCheckable(True)
+        act_autostart.setChecked(self.settings.is_autostart_enabled())
+        def _toggle_comp_autostart():
+            new_state = act_autostart.isChecked()
+            self.settings.set_autostart_enabled(new_state)
+            if hasattr(self.app_controller, "act_autostart"):
+                self.app_controller.act_autostart.setChecked(new_state)
+        act_autostart.triggered.connect(_toggle_comp_autostart)
+        menu.addAction(act_autostart)
+
         # Hide
         act_hide = QAction("Hide SENTI (Single-click)", self)
         act_hide.triggered.connect(self.fade_hide)
@@ -526,6 +577,15 @@ class SentiApp:
         act_control = QAction("Settings", menu)
         act_control.triggered.connect(self.open_control_window)
         menu.addAction(act_control)
+
+        self.act_autostart = QAction("Start with Windows", menu)
+        self.act_autostart.setCheckable(True)
+        self.act_autostart.setChecked(self.settings.is_autostart_enabled())
+        def _toggle_tray_autostart():
+            new_state = self.act_autostart.isChecked()
+            self.settings.set_autostart_enabled(new_state)
+        self.act_autostart.triggered.connect(_toggle_tray_autostart)
+        menu.addAction(self.act_autostart)
 
         menu.addSeparator()
 
@@ -783,14 +843,31 @@ class SentiApp:
         QTimer.singleShot(900, _bring_in_island)
 
     def quit_app(self):
-        self.dashboard.close()
-        if not self.companion.is_docked:
-            self.settings.set_window_pos(self.companion.pos())
-        self.settings.set_island_pos(self.island.pos())
-        QApplication.instance().quit()
+        """Clean shutdown: stops polling, hides tray, persists coordinates, and exits."""
+        if hasattr(self, "poll_timer"):
+            self.poll_timer.stop()
+        if hasattr(self, "dashboard"):
+            self.dashboard.close()
+        if hasattr(self, "control_win"):
+            self.control_win.close()
+        if hasattr(self, "island"):
+            self.island.close()
+        if hasattr(self, "companion"):
+            if not self.companion.is_docked:
+                self.settings.set_window_pos(self.companion.pos())
+            self.companion.close()
+        if hasattr(self, "tray"):
+            self.tray.hide()
+        if hasattr(self, "island"):
+            self.settings.set_island_pos(self.island.pos())
+        self.settings.sync()
+        app = QApplication.instance()
+        if app:
+            app.quit()
 
 
 def main():
+    setup_crash_logging()
     app = QApplication(sys.argv)
     app.setOrganizationName("Sentinel")
     app.setApplicationName("SENTI")

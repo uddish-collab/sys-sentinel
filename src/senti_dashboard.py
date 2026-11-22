@@ -1116,13 +1116,17 @@ class SentiDashboardWindow(QWidget):
         p_lbl.setStyleSheet("color: #cbd5e1; font-size: 10px; font-weight: 600;")
         _spec_row(0, "PROJECT", p_lbl)
 
+        v_lbl = QLabel("v1.0.0 (Release Edition)")
+        v_lbl.setStyleSheet("color: #38bdf8; font-size: 10px; font-weight: 700;")
+        _spec_row(1, "VERSION", v_lbl)
+
         f_lbl = QLabel("Python 3.10+ · Qt6 / PySide6 Engine")
         f_lbl.setStyleSheet("color: #cbd5e1; font-size: 10px; font-weight: 600;")
-        _spec_row(1, "FRAMEWORK", f_lbl)
+        _spec_row(2, "FRAMEWORK", f_lbl)
 
         t_lbl = QLabel("Zero-Latency Real-Time Hardware Diagnostics")
         t_lbl.setStyleSheet("color: #cbd5e1; font-size: 10px; font-weight: 600;")
-        _spec_row(2, "TELEMETRY", t_lbl)
+        _spec_row(3, "TELEMETRY", t_lbl)
 
         # Repository link
         repo_link = QLabel(
@@ -1133,7 +1137,7 @@ class SentiDashboardWindow(QWidget):
         repo_link.setOpenExternalLinks(True)
         repo_link.setTextInteractionFlags(Qt.TextInteractionFlag.TextBrowserInteraction)
         repo_link.setStyleSheet("font-size: 10px;")
-        _spec_row(3, "REPOSITORY", repo_link)
+        _spec_row(4, "REPOSITORY", repo_link)
 
         left_meta.addLayout(specs_grid)
         row1.addLayout(left_meta, 5)
@@ -1210,6 +1214,59 @@ class SentiDashboardWindow(QWidget):
         lbl_c2_header.setStyleSheet("color: #8c9dbd; font-size: 11px; font-weight: 700; letter-spacing: 0.5px;")
         c2_hdr_row.addWidget(lbl_c2_header)
         c2_hdr_row.addStretch()
+
+        btn_autostart = QPushButton()
+        btn_autostart.setFixedHeight(24)
+        btn_autostart.setCursor(Qt.CursorShape.PointingHandCursor)
+
+        def _refresh_autostart_style():
+            enabled = self.settings.is_autostart_enabled()
+            if enabled:
+                btn_autostart.setText("●  START ON BOOT: ON")
+                btn_autostart.setStyleSheet("""
+                    QPushButton {
+                        background: #101c18;
+                        color: #22c55e;
+                        font-size: 10px;
+                        font-weight: 700;
+                        letter-spacing: 0.8px;
+                        border: 1px solid #1c3d2a;
+                        border-radius: 4px;
+                        padding: 0px 10px;
+                    }
+                    QPushButton:hover {
+                        background: #142820;
+                        border: 1px solid #22c55e;
+                    }
+                """)
+            else:
+                btn_autostart.setText("○  START ON BOOT: OFF")
+                btn_autostart.setStyleSheet("""
+                    QPushButton {
+                        background: #12151e;
+                        color: #64748b;
+                        font-size: 10px;
+                        font-weight: 700;
+                        letter-spacing: 0.8px;
+                        border: 1px solid #232938;
+                        border-radius: 4px;
+                        padding: 0px 10px;
+                    }
+                    QPushButton:hover {
+                        background: #181d2a;
+                        color: #94a3b8;
+                        border: 1px solid #38bdf8;
+                    }
+                """)
+        _refresh_autostart_style()
+
+        def _on_autostart_clicked():
+            cur = self.settings.is_autostart_enabled()
+            self.settings.set_autostart_enabled(not cur)
+            _refresh_autostart_style()
+
+        btn_autostart.clicked.connect(_on_autostart_clicked)
+        c2_hdr_row.addWidget(btn_autostart)
 
         btn_instructions = QPushButton("●  INSTRUCTIONS")
         btn_instructions.setFixedHeight(24)

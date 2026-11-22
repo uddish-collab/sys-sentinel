@@ -90,6 +90,24 @@ py -m unittest discover -s tests -v
 
 ---
 
+## 📦 Building Executable & Installer
+
+### 1. Build Optimized Standalone Binaries
+Compiles the `--onedir` executable distribution into `dist\SENTI\` with heavy unused Qt modules stripped:
+```bash
+build_exe.bat
+```
+
+### 2. Generate Windows Setup Installer
+Creates a full Windows installer (`dist\installer\Sentinel-Setup-v1.0.0.exe`) with Start Menu shortcuts, uninstaller, and optional boot autostart:
+```bash
+build_installer.bat
+```
+
+> **Note on Windows SmartScreen**: Because this open-source build is not yet code-signed with an EV certificate, Windows SmartScreen may present a routine warning on initial launch. Click **More info** → **Run anyway** to proceed.
+
+---
+
 ## 📁 Project Structure
 
 ```text

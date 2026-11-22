@@ -1,8 +1,15 @@
 """Settings management for Sentinel using QSettings."""
 
+import sys
+import os
 from typing import Dict, Any, Optional
 from PySide6.QtCore import QSettings, QPoint
 from PySide6.QtGui import QColor, QGuiApplication
+
+try:
+    import winreg
+except ImportError:
+    winreg = None
 
 
 DEFAULT_COLORS: Dict[str, str] = {
@@ -124,6 +131,44 @@ class SentiSettings:
     def set_island_pos(self, pos: QPoint):
         self._settings.setValue("island/x", int(pos.x()))
         self._settings.setValue("island/y", int(pos.y()))
+
+    def is_autostart_enabled(self) -> bool:
+        if winreg is None:
+            return False
+        key_path = r"Software\Microsoft\Windows\CurrentVersion\Run"
+        app_name = "Sentinel"
+        try:
+            with winreg.OpenKey(winreg.HKEY_CURRENT_USER, key_path, 0, winreg.KEY_READ) as key:
+                val, _ = winreg.QueryValueEx(key, app_name)
+                return bool(val)
+        except Exception:
+            return False
+
+    def set_autostart_enabled(self, enabled: bool) -> bool:
+        if winreg is None:
+            return False
+        key_path = r"Software\Microsoft\Windows\CurrentVersion\Run"
+        app_name = "Sentinel"
+        try:
+            with winreg.OpenKey(winreg.HKEY_CURRENT_USER, key_path, 0, winreg.KEY_SET_VALUE) as key:
+                if enabled:
+                    if getattr(sys, "frozen", False):
+                        exe_path = f'"{sys.executable}"'
+                    else:
+                        main_py = os.path.abspath(os.path.join(os.path.dirname(__file__), "senti_app.py"))
+                        exe_path = f'"{sys.executable}" "{main_py}"'
+                    winreg.SetValueEx(key, app_name, 0, winreg.REG_SZ, exe_path)
+                else:
+                    try:
+                        winreg.DeleteValue(key, app_name)
+                    except FileNotFoundError:
+                        pass
+            return True
+        except Exception:
+            return False
+
+    def sync(self):
+        self._settings.sync()
 
 
 def get_default_island_pos(island_w: int, island_h: int = 52) -> QPoint:
