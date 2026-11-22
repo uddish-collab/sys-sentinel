@@ -15,12 +15,13 @@ AppPublisher={#MyAppPublisher}
 AppPublisherURL={#MyAppURL}
 AppSupportURL={#MyAppURL}
 AppUpdatesURL={#MyAppURL}
-DefaultDirName={autopf}\Sentinel
-DefaultGroupName=Sentinel
+DefaultDirName={autopf}\SYS-SENTINEL
+DefaultGroupName=SYS-SENTINEL
 AllowNoIcons=yes
 OutputDir=dist\installer
-OutputBaseFilename=Sentinel-Setup-v1.0.0
+OutputBaseFilename=SENTI-Setup-v1.0.0
 SetupIconFile=assets\senti.ico
+UninstallDisplayIcon={app}\{#MyAppExeName}
 Compression=lzma2/ultra64
 SolidCompression=yes
 WizardStyle=modern
@@ -32,8 +33,8 @@ DisableProgramGroupPage=yes
 Name: "english"; MessagesFile: "compiler:Default.isl"
 
 [Tasks]
-Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
-Name: "autostart"; Description: "Launch Sentinel automatically on Windows startup"; GroupDescription: "Windows Integration:"
+Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"
+Name: "autostart"; Description: "Launch SYS-SENTINEL automatically on Windows startup"; GroupDescription: "Windows Integration:"
 
 [Files]
 Source: "dist\SENTI.exe"; DestDir: "{app}"; Flags: ignoreversion

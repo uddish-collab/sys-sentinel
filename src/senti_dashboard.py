@@ -1291,109 +1291,68 @@ class SentiDashboardWindow(QWidget):
         """)
         btn_instructions.clicked.connect(self.toggle_instructions_drawer)
         c2_hdr_row.addWidget(btn_instructions)
-
-        btn_uninstall = QPushButton("✕  UNINSTALL")
-        btn_uninstall.setFixedHeight(24)
-        btn_uninstall.setCursor(Qt.CursorShape.PointingHandCursor)
-        btn_uninstall.setStyleSheet("""
-            QPushButton {
-                background: #181215;
-                color: #ef4444;
-                font-size: 10px;
-                font-weight: 700;
-                letter-spacing: 0.8px;
-                border: 1px solid #3b1820;
-                border-radius: 4px;
-                padding: 0px 10px;
-            }
-            QPushButton:hover {
-                background: #28141a;
-                color: #f87171;
-                border: 1px solid #ef4444;
-            }
-            QPushButton:pressed {
-                background: #140b0e;
-                color: #dc2626;
-            }
-        """)
-
-        def _on_uninstall_clicked():
-            res = QMessageBox.question(
-                self,
-                "Uninstall SYS-SENTINEL",
-                "Are you sure you want to uninstall and unregister SYS-SENTINEL from Windows?\n\n"
-                "This will remove the Start Menu shortcut, disable autostart, and clean up Windows registry entries.",
-                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-                QMessageBox.StandardButton.No,
-            )
-            if res == QMessageBox.StandardButton.Yes:
-                self.settings.set_autostart_enabled(False)
-                from senti_settings import unregister_windows_app
-                unregister_windows_app()
-                QMessageBox.information(
-                    self,
-                    "SYS-SENTINEL Uninstalled",
-                    "SYS-SENTINEL has been successfully unregistered from Windows.\n\n"
-                    "The application will now shut down.",
-                    QMessageBox.StandardButton.Ok,
-                )
-                QApplication.quit()
-
-        btn_uninstall.clicked.connect(_on_uninstall_clicked)
-        c2_hdr_row.addWidget(btn_uninstall)
         c2_lay.addLayout(c2_hdr_row)
 
-        dial_row = QHBoxLayout()
-        dial_row.setSpacing(24)
+        # -------------------------------------------------------------
+        # BODY: SYMMETRICAL TWO-COLUMN LAYOUT MATCHING CARD 1
+        # -------------------------------------------------------------
+        row2 = QHBoxLayout()
+        row2.setSpacing(16)
 
-        # 1. Rotary Dial
+        # LEFT COLUMN: ROTARY DIAL & CHANNEL NAVIGATOR
+        left_dial_box = QHBoxLayout()
+        left_dial_box.setSpacing(16)
+
         dial = RotaryThemeDial()
-
         init_idx = 0
         cur_eyes = self.settings.get_color("eyes").name().lower()
         for i, t in enumerate(THEME_DATA):
             if t["colors"][2][1].lower() == cur_eyes:
                 init_idx = i
                 break
-
         dial.set_theme_index(init_idx, animate=False)
-        dial_row.addWidget(dial)
+        left_dial_box.addWidget(dial)
 
-        # 2. Information & Controls (Only Channel, Colored Theme Name, and Buttons)
-        info_col = QVBoxLayout()
-        info_col.setSpacing(8)
+        dial_info = QVBoxLayout()
+        dial_info.setSpacing(6)
+        dial_info.addStretch()
 
         lbl_ch = QLabel(f"CHANNEL 0{init_idx + 1} / 0{len(THEME_DATA)}")
-        lbl_ch.setStyleSheet("color: #8c9dbd; font-size: 11px; font-weight: 700; letter-spacing: 1px;")
-        info_col.addWidget(lbl_ch)
+        lbl_ch.setStyleSheet("color: #8c9dbd; font-size: 10px; font-weight: 700; letter-spacing: 0.8px;")
+        dial_info.addWidget(lbl_ch)
 
         cur_t = THEME_DATA[init_idx]
         lbl_theme_name = QLabel(cur_t["name"].upper())
-        lbl_theme_name.setStyleSheet(f"color: {cur_t['accent']}; font-size: 22px; font-weight: 800; letter-spacing: 1px;")
-        info_col.addWidget(lbl_theme_name)
+        lbl_theme_name.setStyleSheet(f"color: {cur_t['accent']}; font-size: 16px; font-weight: 800; letter-spacing: 0.6px; font-family: 'Segoe UI', Consolas;")
+        dial_info.addWidget(lbl_theme_name)
+
+        lbl_theme_desc = QLabel(cur_t["desc"])
+        lbl_theme_desc.setWordWrap(True)
+        lbl_theme_desc.setStyleSheet("color: #64748b; font-size: 9.5px; font-weight: 500; line-height: 130%;")
+        dial_info.addWidget(lbl_theme_desc)
 
         btn_row = QHBoxLayout()
-        btn_row.setSpacing(8)
+        btn_row.setSpacing(6)
 
-        btn_prev = QPushButton("◀  PREV THEME")
-        btn_next = QPushButton("NEXT THEME  ▶")
+        btn_prev = QPushButton("◀ PREV")
+        btn_next = QPushButton("NEXT ▶")
         for b in (btn_prev, btn_next):
-            b.setFixedHeight(30)
+            b.setFixedHeight(24)
             b.setCursor(Qt.CursorShape.PointingHandCursor)
             b.setStyleSheet("""
                 QPushButton {
                     background: #141720;
                     color: #8c9dbd;
-                    font-size: 10px;
+                    font-size: 9.5px;
                     font-weight: 700;
                     border: 1px solid #232836;
                     border-radius: 4px;
-                    padding: 0px 14px;
+                    padding: 0px 10px;
                 }
                 QPushButton:hover {
                     background: #1c212e;
                     color: #f8fafc;
-                    border: 1px solid #384259;
+                    border: 1px solid #38bdf8;
                 }
             """)
         btn_prev.clicked.connect(lambda: dial.set_theme_index(dial._current_index - 1))
@@ -1401,10 +1360,66 @@ class SentiDashboardWindow(QWidget):
         btn_row.addWidget(btn_prev)
         btn_row.addWidget(btn_next)
         btn_row.addStretch()
-        info_col.addLayout(btn_row)
+        dial_info.addLayout(btn_row)
+        dial_info.addStretch()
 
-        dial_row.addLayout(info_col, 1)
-        c2_lay.addLayout(dial_row)
+        left_dial_box.addLayout(dial_info, 1)
+        row2.addLayout(left_dial_box, 5)
+
+        # VERTICAL HAIRLINE DIVIDER
+        vdiv2 = QFrame()
+        vdiv2.setFixedWidth(1)
+        vdiv2.setStyleSheet("background: #1c2028; border: none;")
+        row2.addWidget(vdiv2)
+
+        # RIGHT COLUMN: PALETTE SPECIFICATIONS (UNBOXED, MATCHING CARD 1 LICENSE)
+        right_pal = QVBoxLayout()
+        right_pal.setSpacing(8)
+
+        pal_head = QHBoxLayout()
+        lbl_pal_title = QLabel("PALETTE SPECIFICATIONS")
+        lbl_pal_title.setStyleSheet("color: #8c9dbd; font-size: 10px; font-weight: 700; letter-spacing: 0.6px;")
+        lbl_pal_badge = QLabel("●  5 PRESETS")
+        lbl_pal_badge.setStyleSheet("color: #38bdf8; font-size: 9px; font-weight: 700; letter-spacing: 0.5px;")
+        pal_head.addWidget(lbl_pal_title)
+        pal_head.addStretch()
+        pal_head.addWidget(lbl_pal_badge)
+        right_pal.addLayout(pal_head)
+
+        pal_grid = QGridLayout()
+        pal_grid.setHorizontalSpacing(10)
+        pal_grid.setVerticalSpacing(4)
+        pal_grid.setColumnStretch(1, 1)
+
+        def _make_swatch_label(color_hex: str, text: str) -> QLabel:
+            lbl = QLabel(f"<span style='color: {color_hex};'>●</span> {text}")
+            lbl.setStyleSheet("color: #cbd5e1; font-size: 10px; font-weight: 600; font-family: Consolas, 'Segoe UI';")
+            return lbl
+
+        lbl_swatch_preset = QLabel(cur_t["tag"])
+        lbl_swatch_preset.setStyleSheet(f"color: {cur_t['accent']}; font-size: 9.5px; font-weight: 700; letter-spacing: 0.5px;")
+
+        lbl_swatch_body = _make_swatch_label(cur_t["colors"][0][1], f"Shell {cur_t['colors'][0][1].upper()}")
+        lbl_swatch_details = _make_swatch_label(cur_t["colors"][1][1], f"Visor {cur_t['colors'][1][1].upper()}")
+        lbl_swatch_eyes = _make_swatch_label(cur_t["colors"][2][1], f"Optics {cur_t['colors'][2][1].upper()}")
+        lbl_swatch_glow = _make_swatch_label(cur_t["colors"][3][1], f"Aura {cur_t['colors'][3][1].upper()}")
+
+        def _pal_row(r: int, label: str, w: QWidget):
+            l = QLabel(label)
+            l.setStyleSheet("color: #64748b; font-size: 9.5px; font-weight: 700;")
+            pal_grid.addWidget(l, r, 0)
+            pal_grid.addWidget(w, r, 1)
+
+        _pal_row(0, "ACTIVE PRESET", lbl_swatch_preset)
+        _pal_row(1, "BODY SHELL", lbl_swatch_body)
+        _pal_row(2, "VISOR CORE", lbl_swatch_details)
+        _pal_row(3, "EYE OPTICS", lbl_swatch_eyes)
+        _pal_row(4, "AURA GLOW", lbl_swatch_glow)
+
+        right_pal.addLayout(pal_grid)
+        row2.addLayout(right_pal, 4)
+
+        c2_lay.addLayout(row2)
         lay.addWidget(c2)
 
         # -------------------------------------------------------------
@@ -1561,7 +1576,14 @@ class SentiDashboardWindow(QWidget):
             t = THEME_DATA[idx]
             lbl_ch.setText(f"CHANNEL 0{idx + 1} / 0{len(THEME_DATA)}")
             lbl_theme_name.setText(tname.upper())
-            lbl_theme_name.setStyleSheet(f"color: {t['accent']}; font-size: 22px; font-weight: 800; letter-spacing: 1px;")
+            lbl_theme_name.setStyleSheet(f"color: {t['accent']}; font-size: 16px; font-weight: 800; letter-spacing: 0.6px; font-family: 'Segoe UI', Consolas;")
+            lbl_theme_desc.setText(t["desc"])
+            lbl_swatch_preset.setText(t["tag"])
+            lbl_swatch_preset.setStyleSheet(f"color: {t['accent']}; font-size: 9.5px; font-weight: 700; letter-spacing: 0.5px;")
+            lbl_swatch_body.setText(f"<span style='color: {t['colors'][0][1]};'>●</span> Shell {t['colors'][0][1].upper()}")
+            lbl_swatch_details.setText(f"<span style='color: {t['colors'][1][1]};'>●</span> Visor {t['colors'][1][1].upper()}")
+            lbl_swatch_eyes.setText(f"<span style='color: {t['colors'][2][1]};'>●</span> Optics {t['colors'][2][1].upper()}")
+            lbl_swatch_glow.setText(f"<span style='color: {t['colors'][3][1]};'>●</span> Aura {t['colors'][3][1].upper()}")
             self.settings.apply_preset_theme(tname)
             if self.on_colors_changed:
                 self.on_colors_changed()

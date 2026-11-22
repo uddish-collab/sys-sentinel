@@ -76,7 +76,9 @@ if "%BUILD_INST%"=="1" (
     )
 
     set "ISCC="
-    if exist "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" (
+    if exist "%LOCALAPPDATA%\Programs\Inno Setup 6\ISCC.exe" (
+        set "ISCC=%LOCALAPPDATA%\Programs\Inno Setup 6\ISCC.exe"
+    ) else if exist "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" (
         set "ISCC=C:\Program Files (x86)\Inno Setup 6\ISCC.exe"
     ) else if exist "C:\Program Files\Inno Setup 6\ISCC.exe" (
         set "ISCC=C:\Program Files\Inno Setup 6\ISCC.exe"
@@ -100,6 +102,10 @@ if "%BUILD_INST%"=="1" (
             exit /b 1
         )
         echo [SUCCESS] Installer generated in dist\installer\
+
+        REM Code signing with Authenticode Certificate (Publisher: Uddish)
+        echo [INFO] Applying Authenticode digital signature to installer...
+        powershell -NoProfile -Command "$cert = Get-ChildItem Cert:\CurrentUser\My -CodeSigningCert | Where-Object { $_.Subject -like '*CN=Uddish*' } | Select-Object -First 1; Get-ChildItem dist\installer\*.exe | ForEach-Object { Set-AuthenticodeSignature -FilePath $_.FullName -Certificate $cert | Out-Null; Write-Host ('[SUCCESS] Digitally signed installer: ' + $_.Name) }"
     )
 )
 

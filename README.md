@@ -62,13 +62,20 @@
 
 ---
 
-## ⚡ Quick Download (No Python Required)
+## ⚡ Quick Download & Installation
 
-To run Senti as a standalone Windows app without installing Python or Git:
+SYS-SENTINEL offers an official Windows Setup Wizard as well as a standalone portable binary (no Python or Git required):
 
-1. Download the latest compiled executable: **[SENTI.exe (Standalone Windows Executable)](https://github.com/uddish-collab/sys-sentinel/releases/download/v1.0.0/SENTI.exe)**.
-2. Double-click **`SENTI.exe`** to launch! No unzipping, extraction, installation, or dependencies required.
-3. **Windows Integration**: Senti automatically adds a high-resolution shortcut to your Windows Start Menu / Search and registers with Windows Add/Remove Programs with full native **Uninstall** support.
+### 💿 Option 1: Windows Setup Wizard (Recommended)
+Download the full Windows installer with standard setup steps, desktop shortcuts, and uninstaller support:
+1. Download **[SENTI-Setup-v1.0.0.exe](https://github.com/uddish-collab/sys-sentinel/releases/download/v1.0.0/SENTI-Setup-v1.0.0.exe)**.
+2. Run the installer, click **Next**, choose your install folder and shortcut checkboxes, and click **Install**.
+3. Fully integrated with Windows Start Menu, desktop, and Windows **Apps & Features** uninstaller.
+
+### ⚡ Option 2: Standalone Portable Executable
+For users who prefer zero installation:
+1. Download **[SENTI.exe](https://github.com/uddish-collab/sys-sentinel/releases/download/v1.0.0/SENTI.exe)**.
+2. Double-click **`SENTI.exe`** to launch instantly anywhere on your system.
 
 ---
 
