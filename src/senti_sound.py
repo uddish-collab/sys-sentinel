@@ -26,12 +26,10 @@ except Exception:
     HAS_QT_AUDIO = False
 
 
-# Authentic Mochi Sound Names
+# Core Active Sound Names
 MOCHI_SOUND_NAMES = [
-    "peek", "open", "close", "hover", "blip", "slap", "annoyed", "dizzy", "greet",
-    "work", "finish", "error", "approval", "question", "approve", "gulp", "tick",
-    "send", "love", "pop", "proud", "wink", "yawn", "attach", "think", "search",
-    "rate", "sleep", "greeting",
+    "annoyed", "approval", "attach", "blip", "close", "dizzy", "greeting",
+    "hover", "love", "open", "pop", "tick", "wink", "work",
 ]
 
 LEGACY_SOUND_NAMES = ["click", "open", "close", "shrink", "restore", "show", "hide", "dock"]

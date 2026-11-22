@@ -94,16 +94,15 @@ py src/senti_app.py
 
 ## 📦 Building Executable & Installer
 
-### 1. Build Optimized Standalone Binaries
-Compiles an optimized `--onedir` standalone distribution into `dist\SENTI\` with heavy unused Qt modules stripped:
-```bash
-build_exe.bat
-```
+SYS-SENTINEL features a unified build script that compiles the standalone distribution and packages the Windows installer:
 
-### 2. Build Windows Setup Wizard
-Compiles a full Windows setup installer (`dist\installer\Sentinel-Setup-v1.0.0.exe`) with Start menu shortcuts, uninstaller, and optional boot autostart:
 ```bash
-build_installer.bat
+# Build standalone distribution (dist\SENTI\) + Windows installer (dist\installer\)
+build.bat
+
+# Optional flags:
+build.bat --exe        # Compiles PyInstaller distribution only
+build.bat --installer  # Packages existing distribution into Inno Setup installer
 ```
 
 > **SmartScreen Notice**: Because this build is open-source and unsigned, Windows SmartScreen may present a routine warning on first launch. Click **More info** → **Run anyway** to proceed.
@@ -112,7 +111,7 @@ build_installer.bat
 
 ## 🧪 Verification & Test Suite
 
-SYS-SENTINEL includes 16 test suites covering telemetry polling, animation curves, companion coordination, and state management:
+SYS-SENTINEL includes comprehensive unit test suites covering telemetry polling, animation curves, companion coordination, and state management:
 
 ```bash
 py -m unittest discover -s tests -v
@@ -148,11 +147,12 @@ sys-sentinel/
 ├── assets/                  # High-resolution mascot icons and synthesized audio cues
 ├── screenshots/             # Visual previews of Island HUD, Dashboards, and VFX
 ├── SENTI.spec               # Optimized PyInstaller distribution specification
+├── file_version_info.txt    # Windows PE version and copyright resource definition
 ├── installer.iss            # Inno Setup Windows installer script
-├── build_exe.bat            # Automated batch compiler for onedir binaries
-├── build_installer.bat      # Automated batch compiler for setup wizard installer
+├── build.bat                # Unified compiler for onedir binaries & setup installer
 ├── requirements.txt         # Pinned core runtime dependencies
 ├── requirements-dev.txt     # Packaging dependencies
+├── LICENSE                  # MIT Open Source License (Uddish)
 ├── .gitignore
 └── README.md
 ```
