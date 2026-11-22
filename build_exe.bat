@@ -32,9 +32,9 @@ if errorlevel 1 (
     exit /b 1
 )
 
-REM 4. Build single-file windowed executable
-echo [INFO] Running PyInstaller...
-.\.venv\Scripts\python.exe -m PyInstaller --noconfirm --clean --onefile --windowed --name SENTI --icon "assets\senti.ico" --add-data "assets\sounds;assets\sounds" --paths "src" "src\senti_app.py"
+REM 4. Build windowed directory distribution executable
+echo [INFO] Running PyInstaller with SENTI.spec...
+.\.venv\Scripts\python.exe -m PyInstaller --noconfirm --clean SENTI.spec
 
 if errorlevel 1 (
     echo [ERROR] PyInstaller build failed.
@@ -42,5 +42,5 @@ if errorlevel 1 (
 )
 
 echo =======================================================
-echo [SUCCESS] SENTI.exe successfully built in dist\SENTI.exe
+echo [SUCCESS] SENTI successfully built in dist\SENTI\
 echo =======================================================

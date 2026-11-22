@@ -4,6 +4,16 @@
 
 SYS-SENTINEL reimagines system monitoring by combining a live desktop mascot ("Senti"), a sleek dynamic Top Island HUD, and a deep 8-tab subsystem analytics dashboard into an intuitive, cyberpunk-styled workstation companion.
 
+<div align="center">
+  <img src="screenshots/dynamic_island.png" alt="Dynamic Island HUD" width="800"/>
+  <br/><br/>
+  <img src="screenshots/dashboard_cpu.png" alt="CPU Diagnostics Dashboard" width="46%"/>
+  &nbsp;&nbsp;
+  <img src="screenshots/instructions_drawer.png" alt="Workstation Settings and Field Manual" width="46%"/>
+  <br/><br/>
+  <img src="screenshots/emotions_showcase.png" alt="Senti Reactive Emotions Showcase" width="800"/>
+</div>
+
 ---
 
 ## 🌟 Key Features
@@ -86,30 +96,44 @@ py -m unittest discover -s tests -v
 sys-sentinel/
 ├── src/
 │   ├── senti_app.py         # Application entry point, window coordinator & tray
+│   ├── senti_brain.py       # Senti Comms natural-language query reasoning engine
 │   ├── senti_mascot.py      # Animated desktop pet widget & reactive eye physics
 │   ├── senti_island.py      # Top Dynamic Island HUD overlay & telemetry pills
-│   ├── senti_dashboard.py   # Full 8-tab subsystem monitor & analytics dashboard
+│   ├── senti_dashboard.py   # Full 8-tab subsystem monitor & instructions drawer
 │   ├── senti_control.py     # Quick settings & companion control flyout
 │   ├── senti_widgets.py     # Reusable custom UI components (meters, graphs, bars)
 │   ├── senti_sound.py       # Procedural audio effects & sound feedback engine
 │   ├── senti_settings.py    # Persistent app settings & user configurations
 │   ├── senti_state.py       # Centralized telemetry store & companion state
 │   └── system_monitor.py    # Asynchronous background hardware metrics & temp daemons
-├── tests/
-│   ├── test_companion.py      # Tests for window coordination and companion setup
-│   ├── test_dashboard.py      # Tests for subsystem dashboard tabs and views
-│   ├── test_pill_toggle.py    # Tests for Top Island telemetry pill interactions
-│   ├── test_senti_state.py    # Tests for central state metrics and thresholds
-│   ├── test_sound.py          # Tests for sound synthesizer cues and effects
-│   ├── test_system_monitor.py # Tests for hardware polling resilience and structure
-│   └── test_temperature.py   # Tests for thermal sensor parsing and fallbacks
-├── requirements.txt
+├── tests/                   # Comprehensive 16-suite unit test coverage (46 tests)
+│   ├── test_companion.py
+│   ├── test_dashboard.py
+│   ├── test_funny_expressions.py
+│   ├── test_island_drag.py
+│   ├── test_mascot_eyes.py
+│   ├── test_pill_toggle.py
+│   ├── test_senti_brain.py
+│   ├── test_senti_state.py
+│   ├── test_sound.py
+│   ├── test_status_dots.py
+│   ├── test_system_monitor.py
+│   ├── test_system_tab.py
+│   ├── test_telemetry_layout.py
+│   ├── test_temperature.py
+│   ├── test_theme_matrix.py
+│   └── test_workstation_matrix.py
+├── assets/                  # High-resolution mascot icons and synthesized audio cues
+├── screenshots/             # Visual previews of Island, Dashboards, and VFX
+├── SENTI.spec               # Optimized PyInstaller distribution specification
+├── requirements.txt         # Pinned core runtime dependencies
+├── requirements-dev.txt     # Build and packaging tooling
 ├── .gitignore
 └── README.md
 ```
 
 ---
 
-## 🛡️ License
+## Terms of Use
 
-Built with ❤️ by the Sys-Sentinel Team.
+Authored and maintained by uddish-collab (2026). Free for personal, educational, and commercial usage.
