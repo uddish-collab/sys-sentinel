@@ -76,8 +76,16 @@ def get_sound_dir() -> str:
 
 def get_bundled_sound_dir() -> str:
     """Return path to bundled assets/sounds folder."""
-    if getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS"):
-        return os.path.join(sys._MEIPASS, "assets", "sounds")
+    if getattr(sys, "frozen", False):
+        if hasattr(sys, "_MEIPASS") and os.path.isdir(os.path.join(sys._MEIPASS, "assets", "sounds")):
+            return os.path.join(sys._MEIPASS, "assets", "sounds")
+        exe_dir = os.path.dirname(sys.executable)
+        cand1 = os.path.join(exe_dir, "_internal", "assets", "sounds")
+        if os.path.isdir(cand1):
+            return cand1
+        cand2 = os.path.join(exe_dir, "assets", "sounds")
+        if os.path.isdir(cand2):
+            return cand2
     repo_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     return os.path.join(repo_root, "assets", "sounds")
 

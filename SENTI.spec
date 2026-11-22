@@ -4,7 +4,10 @@ a = Analysis(
     ['src/senti_app.py'],
     pathex=['src'],
     binaries=[],
-    datas=[('assets/sounds', 'assets/sounds')],
+    datas=[
+        ('assets/sounds', 'assets/sounds'),
+        ('assets/senti.ico', 'assets'),
+    ],
     hiddenimports=[],
     hookspath=[],
     hooksconfig={},
