@@ -47,6 +47,7 @@ from PySide6.QtWidgets import (
     QGraphicsOpacityEffect,
     QLineEdit,
     QTextEdit,
+    QMessageBox,
 )
 
 from senti_widgets import SmoothBar
@@ -1290,6 +1291,56 @@ class SentiDashboardWindow(QWidget):
         """)
         btn_instructions.clicked.connect(self.toggle_instructions_drawer)
         c2_hdr_row.addWidget(btn_instructions)
+
+        btn_uninstall = QPushButton("✕  UNINSTALL")
+        btn_uninstall.setFixedHeight(24)
+        btn_uninstall.setCursor(Qt.CursorShape.PointingHandCursor)
+        btn_uninstall.setStyleSheet("""
+            QPushButton {
+                background: #181215;
+                color: #ef4444;
+                font-size: 10px;
+                font-weight: 700;
+                letter-spacing: 0.8px;
+                border: 1px solid #3b1820;
+                border-radius: 4px;
+                padding: 0px 10px;
+            }
+            QPushButton:hover {
+                background: #28141a;
+                color: #f87171;
+                border: 1px solid #ef4444;
+            }
+            QPushButton:pressed {
+                background: #140b0e;
+                color: #dc2626;
+            }
+        """)
+
+        def _on_uninstall_clicked():
+            res = QMessageBox.question(
+                self,
+                "Uninstall SYS-SENTINEL",
+                "Are you sure you want to uninstall and unregister SYS-SENTINEL from Windows?\n\n"
+                "This will remove the Start Menu shortcut, disable autostart, and clean up Windows registry entries.",
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                QMessageBox.StandardButton.No,
+            )
+            if res == QMessageBox.StandardButton.Yes:
+                self.settings.set_autostart_enabled(False)
+                from senti_settings import unregister_windows_app
+                unregister_windows_app()
+                QMessageBox.information(
+                    self,
+                    "SYS-SENTINEL Uninstalled",
+                    "SYS-SENTINEL has been successfully unregistered from Windows.\n\n"
+                    "The application will now shut down.",
+                    QMessageBox.StandardButton.Ok,
+                )
+                QApplication.quit()
+
+        btn_uninstall.clicked.connect(_on_uninstall_clicked)
+        c2_hdr_row.addWidget(btn_uninstall)
         c2_lay.addLayout(c2_hdr_row)
 
         dial_row = QHBoxLayout()

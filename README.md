@@ -68,6 +68,7 @@ To run Senti as a standalone Windows app without installing Python or Git:
 
 1. Download the latest compiled executable: **[SENTI.exe (Standalone Windows Executable)](https://github.com/uddish-collab/sys-sentinel/releases/download/v1.0.0/SENTI.exe)**.
 2. Double-click **`SENTI.exe`** to launch! No unzipping, extraction, installation, or dependencies required.
+3. **Windows Integration**: Senti automatically adds a high-resolution shortcut to your Windows Start Menu / Search and registers with Windows Add/Remove Programs with full native **Uninstall** support.
 
 ---
 
@@ -114,7 +115,8 @@ build.bat --exe        # Compiles standalone PyInstaller executable only
 build.bat --installer  # Packages existing executable into Inno Setup installer
 ```
 
-> **SmartScreen Notice**: Because this build is open-source and unsigned, Windows SmartScreen may present a routine warning on first launch. Click **More info** → **Run anyway** to proceed.
+> **Windows Verification & SmartScreen Note**:
+> SYS-SENTINEL executables are built with embedded PE metadata and signed with Authenticode by **Uddish**. As with newly published releases downloaded from browsers, Windows Defender SmartScreen verifies new binary hashes upon initial launch. If the verification screen appears, simply click **More info** → **Run anyway** (or right-click `SENTI.exe` → **Properties** → check **Unblock** → **Apply**).
 
 ---
 

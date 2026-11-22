@@ -171,6 +171,110 @@ class SentiSettings:
         self._settings.sync()
 
 
+def get_start_menu_shortcut_path() -> str:
+    """Return the absolute path to the Start Menu shortcut for SYS-SENTINEL."""
+    app_data = os.environ.get("APPDATA", "")
+    if not app_data:
+        return ""
+    return os.path.join(app_data, "Microsoft", "Windows", "Start Menu", "Programs", "SYS-SENTINEL.lnk")
+
+
+def is_windows_app_registered() -> bool:
+    """Check if SYS-SENTINEL is registered in Windows Add/Remove Programs and Start Menu."""
+    if winreg is None:
+        return False
+    reg_path = r"Software\Microsoft\Windows\CurrentVersion\Uninstall\SYS-SENTINEL"
+    try:
+        with winreg.OpenKey(winreg.HKEY_CURRENT_USER, reg_path, 0, winreg.KEY_READ) as key:
+            val, _ = winreg.QueryValueEx(key, "DisplayName")
+            return bool(val)
+    except Exception:
+        return False
+
+
+def register_windows_app(version: str = "1.0.0") -> bool:
+    """Register SYS-SENTINEL in Windows Start Menu and Add/Remove Programs (Uninstall registry)."""
+    if winreg is None:
+        return False
+
+    exe_path = os.path.abspath(sys.executable)
+
+    reg_path = r"Software\Microsoft\Windows\CurrentVersion\Uninstall\SYS-SENTINEL"
+    try:
+        with winreg.CreateKey(winreg.HKEY_CURRENT_USER, reg_path) as key:
+            winreg.SetValueEx(key, "DisplayName", 0, winreg.REG_SZ, "SYS-SENTINEL")
+            winreg.SetValueEx(key, "DisplayVersion", 0, winreg.REG_SZ, version)
+            winreg.SetValueEx(key, "Publisher", 0, winreg.REG_SZ, "Uddish")
+            winreg.SetValueEx(key, "DisplayIcon", 0, winreg.REG_SZ, exe_path)
+            if getattr(sys, "frozen", False):
+                uninst_cmd = f'"{exe_path}" --uninstall'
+            else:
+                main_py = os.path.abspath(os.path.join(os.path.dirname(__file__), "senti_app.py"))
+                uninst_cmd = f'"{exe_path}" "{main_py}" --uninstall'
+            winreg.SetValueEx(key, "UninstallString", 0, winreg.REG_SZ, uninst_cmd)
+            winreg.SetValueEx(key, "InstallLocation", 0, winreg.REG_SZ, os.path.dirname(exe_path))
+            winreg.SetValueEx(key, "HelpLink", 0, winreg.REG_SZ, "https://github.com/uddish-collab/sys-sentinel")
+            winreg.SetValueEx(key, "NoModify", 0, winreg.REG_DWORD, 1)
+            winreg.SetValueEx(key, "NoRepair", 0, winreg.REG_DWORD, 1)
+
+        # Create Start Menu shortcut so Windows Search lists it as an installed app with full tile
+        shortcut_path = get_start_menu_shortcut_path()
+        if shortcut_path and os.path.exists(os.path.dirname(shortcut_path)):
+            escaped_shortcut = shortcut_path.replace("'", "''")
+            escaped_exe = exe_path.replace("'", "''")
+            escaped_dir = os.path.dirname(exe_path).replace("'", "''")
+            import subprocess
+            if getattr(sys, "frozen", False):
+                ps_script = (
+                    f"$ws = New-Object -ComObject WScript.Shell; "
+                    f"$s = $ws.CreateShortcut('{escaped_shortcut}'); "
+                    f"$s.TargetPath = '{escaped_exe}'; "
+                    f"$s.WorkingDirectory = '{escaped_dir}'; "
+                    f"$s.Save()"
+                )
+            else:
+                main_py = os.path.abspath(os.path.join(os.path.dirname(__file__), "senti_app.py")).replace("'", "''")
+                ps_script = (
+                    f"$ws = New-Object -ComObject WScript.Shell; "
+                    f"$s = $ws.CreateShortcut('{escaped_shortcut}'); "
+                    f"$s.TargetPath = '{escaped_exe}'; "
+                    f"$s.Arguments = '\"{main_py}\"'; "
+                    f"$s.WorkingDirectory = '{escaped_dir}'; "
+                    f"$s.Save()"
+                )
+            subprocess.run(
+                ["powershell", "-NoProfile", "-NonInteractive", "-Command", ps_script],
+                capture_output=True,
+                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+                timeout=5,
+            )
+        return True
+    except Exception:
+        return False
+
+
+def unregister_windows_app() -> bool:
+    """Remove SYS-SENTINEL from Windows Start Menu and Add/Remove Programs."""
+    success = True
+    if winreg is not None:
+        reg_path = r"Software\Microsoft\Windows\CurrentVersion\Uninstall\SYS-SENTINEL"
+        try:
+            winreg.DeleteKey(winreg.HKEY_CURRENT_USER, reg_path)
+        except FileNotFoundError:
+            pass
+        except Exception:
+            success = False
+
+    shortcut_path = get_start_menu_shortcut_path()
+    if shortcut_path and os.path.exists(shortcut_path):
+        try:
+            os.remove(shortcut_path)
+        except Exception:
+            success = False
+
+    return success
+
+
 def get_default_island_pos(island_w: int, island_h: int = 52) -> QPoint:
     """Return top center position on primary screen."""
     screens = QGuiApplication.screens()

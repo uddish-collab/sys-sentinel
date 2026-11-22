@@ -57,6 +57,10 @@ if "%BUILD_EXE%"=="1" (
     )
 
     echo [SUCCESS] Standalone single executable created: dist\SENTI.exe
+
+    REM Code signing with Authenticode Certificate (Publisher: Uddish)
+    echo [INFO] Applying Authenticode digital signature to dist\SENTI.exe...
+    powershell -NoProfile -Command "$cert = Get-ChildItem Cert:\CurrentUser\My -CodeSigningCert | Where-Object { $_.Subject -like '*CN=Uddish*' } | Select-Object -First 1; if (-not $cert) { $cert = New-SelfSignedCertificate -Type CodeSigningCert -Subject 'CN=Uddish, O=SYS-SENTINEL' -CertStoreLocation 'Cert:\CurrentUser\My' }; Set-AuthenticodeSignature -FilePath 'dist\SENTI.exe' -Certificate $cert | Out-Null; $sig = Get-AuthenticodeSignature 'dist\SENTI.exe'; Write-Host ('[SUCCESS] Digitally signed with Authenticode: ' + $sig.SignerCertificate.Subject)"
 )
 
 REM -------------------------------------------------------------

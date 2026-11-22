@@ -95,6 +95,9 @@ from senti_settings import (
     SentiSettings,
     get_safe_initial_pos,
     get_default_island_pos,
+    register_windows_app,
+    unregister_windows_app,
+    is_windows_app_registered,
 )
 from senti_sound import play_sound, play_pill_hover, play_pill_tick, ensure_sound_files
 from senti_mascot import SentiMascot, render_mascot_image
@@ -862,10 +865,59 @@ class SentiApp:
 
 def main():
     setup_crash_logging()
+
+    # Handle uninstallation command line argument (invoked by Windows Settings / Search Uninstall)
+    if "--uninstall" in sys.argv:
+        app = QApplication(sys.argv)
+        app.setOrganizationName("Uddish")
+        app.setApplicationName("SENTI")
+        app.setApplicationDisplayName("Senti")
+        res = QMessageBox.question(
+            None,
+            "Uninstall SYS-SENTINEL",
+            "Are you sure you want to uninstall and unregister SYS-SENTINEL from Windows?",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+            QMessageBox.StandardButton.No,
+        )
+        if res == QMessageBox.StandardButton.Yes:
+            settings = SentiSettings()
+            settings.set_autostart_enabled(False)
+            unregister_windows_app()
+            QMessageBox.information(
+                None,
+                "SYS-SENTINEL Uninstalled",
+                "SYS-SENTINEL has been successfully unregistered from Windows.\n\n"
+                "The Start Menu shortcut and Windows registry entries have been removed.",
+                QMessageBox.StandardButton.Ok,
+            )
+        sys.exit(0)
+
+    # Handle explicit install command line argument
+    if "--install" in sys.argv:
+        app = QApplication(sys.argv)
+        app.setOrganizationName("Uddish")
+        app.setApplicationName("SENTI")
+        register_windows_app(__version__)
+        QMessageBox.information(
+            None,
+            "SYS-SENTINEL Registered",
+            "SYS-SENTINEL has been successfully registered with Windows!\n\n"
+            "• Added to Start Menu & Windows Search\n"
+            "• Registered with Windows Add/Remove Programs with full Uninstall support.",
+            QMessageBox.StandardButton.Ok,
+        )
+        sys.exit(0)
+
     app = QApplication(sys.argv)
     app.setOrganizationName("Uddish")
     app.setApplicationName("SENTI")
     app.setApplicationDisplayName("Senti")
+
+    # Automatically register with Windows on launch so it appears in Start Menu and Windows Search
+    try:
+        register_windows_app(__version__)
+    except Exception:
+        pass
 
     # Closing windows never quits the app
     app.setQuitOnLastWindowClosed(False)
