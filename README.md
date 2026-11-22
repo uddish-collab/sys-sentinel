@@ -131,29 +131,20 @@ sys-sentinel/
 │   ├── senti_mascot.py      # Animated desktop pet widget, VFX particle engine & reactive eye physics
 │   ├── senti_island.py      # Top Dynamic Island HUD overlay & 8-pill telemetry matrix
 │   ├── senti_dashboard.py   # Full 8-tab subsystem monitor & instructions drawer
-│   ├── senti_control.py     # Quick settings & companion control flyout
 │   ├── senti_widgets.py     # Reusable custom UI components (meters, sparklines, bars)
 │   ├── senti_sound.py       # Polyphonic audio synthesis & harmonic glass chimes
 │   ├── senti_settings.py    # Persistent app settings, Windows registry autostart & theme matrix
 │   ├── senti_state.py       # Centralized telemetry store & companion mood state
 │   └── system_monitor.py    # Asynchronous background hardware metrics & thermal daemons
-├── tests/                   # Comprehensive 16-suite unit test coverage (46 tests)
+├── tests/                   # Comprehensive test coverage (46 tests across 8 suites)
 │   ├── test_companion.py
 │   ├── test_dashboard.py
-│   ├── test_funny_expressions.py
-│   ├── test_island_drag.py
-│   ├── test_mascot_eyes.py
 │   ├── test_pill_toggle.py
 │   ├── test_senti_brain.py
 │   ├── test_senti_state.py
 │   ├── test_sound.py
-│   ├── test_status_dots.py
 │   ├── test_system_monitor.py
-│   ├── test_system_tab.py
-│   ├── test_telemetry_layout.py
-│   ├── test_temperature.py
-│   ├── test_theme_matrix.py
-│   └── test_workstation_matrix.py
+│   └── test_temperature.py
 ├── assets/                  # High-resolution mascot icons and synthesized audio cues
 ├── screenshots/             # Visual previews of Island HUD, Dashboards, and VFX
 ├── SENTI.spec               # Optimized PyInstaller distribution specification

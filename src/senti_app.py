@@ -98,7 +98,6 @@ from senti_settings import (
 )
 from senti_sound import play_sound, play_pill_hover, play_pill_tick, ensure_sound_files
 from senti_mascot import SentiMascot, render_mascot_image
-from senti_control import SentiControlWindow
 from senti_dashboard import SentiDashboardWindow
 from senti_island import TopIslandWindow, TAB_CANONICAL, PILL_HIT_INDEX
 
@@ -129,6 +128,7 @@ class CompanionWindow(QWidget):
         )
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         self.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating)
+        self.setWindowTitle("Senti")
         # Ensure native platform window handle is instantiated
         self.winId()
 
@@ -537,11 +537,6 @@ class SentiApp:
         )
         self.dashboard.closed.connect(self._on_dashboard_closed)
 
-        # 6. Create Control / Settings Window
-        self.control_win = SentiControlWindow(self.settings, self.history_map)
-        self.control_win.colors_changed.connect(self.on_palette_changed)
-        self.control_win.sound_toggled.connect(self.on_sound_toggled)
-
         # 5. System Tray Icon
         self._init_tray()
 
@@ -560,6 +555,7 @@ class SentiApp:
 
         self.tray = QSystemTrayIcon(self.companion)
         self.tray.setIcon(icon)
+        self.tray.setToolTip("Senti")
 
         menu = QMenu()
         self.act_tray_toggle = QAction("Hide SENTI", menu)
@@ -848,8 +844,6 @@ class SentiApp:
             self.poll_timer.stop()
         if hasattr(self, "dashboard"):
             self.dashboard.close()
-        if hasattr(self, "control_win"):
-            self.control_win.close()
         if hasattr(self, "island"):
             self.island.close()
         if hasattr(self, "companion"):
@@ -871,6 +865,7 @@ def main():
     app = QApplication(sys.argv)
     app.setOrganizationName("Sentinel")
     app.setApplicationName("SENTI")
+    app.setApplicationDisplayName("Senti")
 
     # Closing windows never quits the app
     app.setQuitOnLastWindowClosed(False)

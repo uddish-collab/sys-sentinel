@@ -36,11 +36,13 @@ class TestCompanionAndIsland(unittest.TestCase):
         self.assertFalse(companion.is_on_senti(QPoint(2, 84)))
         self.assertFalse(companion.is_on_senti(QPoint(84, 84)))
 
+        # Tray tooltip must display Senti on hover
+        self.assertEqual(controller.tray.toolTip(), "Senti")
+
         # Clean up
         companion.close()
         controller.island.close()
         controller.dashboard.close()
-        controller.control_win.close()
 
     def test_island_dock_target_pos(self):
         island = TopIslandWindow()
@@ -69,7 +71,6 @@ class TestCompanionAndIsland(unittest.TestCase):
         companion.close()
         controller.island.close()
         controller.dashboard.close()
-        controller.control_win.close()
 
     def test_double_tap_returns_to_island(self):
         controller = SentiApp()
@@ -86,7 +87,6 @@ class TestCompanionAndIsland(unittest.TestCase):
         companion.close()
         controller.island.close()
         controller.dashboard.close()
-        controller.control_win.close()
 
     def test_island_click_triggers_funny_expression_and_sound(self):
         controller = SentiApp()
@@ -128,7 +128,6 @@ class TestCompanionAndIsland(unittest.TestCase):
         companion.close()
         controller.island.close()
         controller.dashboard.close()
-        controller.control_win.close()
 
 
 if __name__ == "__main__":

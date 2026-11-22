@@ -473,7 +473,7 @@ class SentiDashboardWindow(QWidget):
         self.on_colors_changed = on_colors_changed
         self.on_sound_toggled = on_sound_toggled
 
-        self.setWindowTitle("Sentinel — System Telemetry")
+        self.setWindowTitle("Senti — System Telemetry")
         self.setObjectName("dashboardRoot")
         self.setFixedSize(720, 570)
 
@@ -1116,17 +1116,13 @@ class SentiDashboardWindow(QWidget):
         p_lbl.setStyleSheet("color: #cbd5e1; font-size: 10px; font-weight: 600;")
         _spec_row(0, "PROJECT", p_lbl)
 
-        v_lbl = QLabel("v1.0.0 (Release Edition)")
-        v_lbl.setStyleSheet("color: #38bdf8; font-size: 10px; font-weight: 700;")
-        _spec_row(1, "VERSION", v_lbl)
-
         f_lbl = QLabel("Python 3.10+ · Qt6 / PySide6 Engine")
         f_lbl.setStyleSheet("color: #cbd5e1; font-size: 10px; font-weight: 600;")
-        _spec_row(2, "FRAMEWORK", f_lbl)
+        _spec_row(1, "FRAMEWORK", f_lbl)
 
         t_lbl = QLabel("Zero-Latency Real-Time Hardware Diagnostics")
         t_lbl.setStyleSheet("color: #cbd5e1; font-size: 10px; font-weight: 600;")
-        _spec_row(3, "TELEMETRY", t_lbl)
+        _spec_row(2, "TELEMETRY", t_lbl)
 
         # Repository link
         repo_link = QLabel(
@@ -1137,7 +1133,7 @@ class SentiDashboardWindow(QWidget):
         repo_link.setOpenExternalLinks(True)
         repo_link.setTextInteractionFlags(Qt.TextInteractionFlag.TextBrowserInteraction)
         repo_link.setStyleSheet("font-size: 10px;")
-        _spec_row(4, "REPOSITORY", repo_link)
+        _spec_row(3, "REPOSITORY", repo_link)
 
         left_meta.addLayout(specs_grid)
         row1.addLayout(left_meta, 5)

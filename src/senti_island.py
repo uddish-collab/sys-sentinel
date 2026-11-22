@@ -107,6 +107,7 @@ class TopIslandWindow(QWidget):
         )
         self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground)
         self.setAttribute(Qt.WidgetAttribute.WA_ShowWithoutActivating)
+        self.setWindowTitle("Senti")
         # Ensure native platform window handle is instantiated
         self.winId()
 
