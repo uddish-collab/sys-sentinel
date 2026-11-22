@@ -736,12 +736,36 @@ class SentiMascot(QWidget):
         body_rect = QRectF(bx, by, bw, bh)
         corner_r = bw * 0.36
 
-        # Dynamic Theme Helmet Shell (Clean, crisp, no rectangular outer glow)
+        # 1. Minimal Body-Contour Emotion Glow (Active ONLY during reactions, tightly hugs squircle body)
+        if self._funny_expression:
+            p.save()
+            p.setBrush(Qt.BrushStyle.NoBrush)
+            glow_passes = [
+                (4.5, 1.2, 35),
+                (3.0, 1.2, 75),
+                (1.8, 1.2, 130),
+                (0.8, 1.0, 190),
+            ]
+            for expand, width, alpha in glow_passes:
+                col = QColor(glow_c)
+                col.setAlpha(alpha)
+                p.setPen(QPen(col, width, Qt.PenStyle.SolidLine, Qt.PenCapStyle.RoundCap, Qt.PenJoinStyle.RoundJoin))
+                r = body_rect.adjusted(-expand, -expand, expand, expand)
+                cr = corner_r + expand * 0.45
+                p.drawRoundedRect(r, cr, cr)
+            p.restore()
+
+        # 2. Dynamic Theme Helmet Shell
         shell_grad = QLinearGradient(bx, by, bx, by + bh)
         shell_grad.setColorAt(0.0, body_c)
         bot_c = body_c.darker(118) if body_c.lightness() > 90 else body_c.lighter(130)
         shell_grad.setColorAt(1.0, bot_c)
-        border_c = QColor(255, 255, 255, 45) if body_c.lightness() > 90 else QColor(255, 255, 255, 25)
+        if self._funny_expression:
+            border_c = QColor(glow_c.red(), glow_c.green(), glow_c.blue(), 140)
+        elif body_c.lightness() > 90:
+            border_c = QColor(255, 255, 255, 45)
+        else:
+            border_c = QColor(255, 255, 255, 25)
         p.setPen(QPen(border_c, 1.0))
         p.setBrush(shell_grad)
         p.drawRoundedRect(body_rect, corner_r, corner_r)
