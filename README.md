@@ -127,7 +127,7 @@ SYS-SENTINEL includes comprehensive unit test suites covering telemetry polling,
 ```bash
 py -m unittest discover -s tests -v
 ```
-*Current test pass rate: 46 / 46 tests passing.*
+*Current test pass rate: 50 / 50 tests passing.*
 
 ---
 
@@ -146,12 +146,13 @@ sys-sentinel/
 │   ├── senti_settings.py    # Persistent app settings, Windows registry autostart & theme matrix
 │   ├── senti_state.py       # Centralized telemetry store & companion mood state
 │   └── system_monitor.py    # Asynchronous background hardware metrics & thermal daemons
-├── tests/                   # Comprehensive test coverage (46 tests across 8 suites)
+├── tests/                   # Comprehensive test coverage (50 tests across 9 suites)
 │   ├── test_companion.py
 │   ├── test_dashboard.py
 │   ├── test_pill_toggle.py
 │   ├── test_senti_brain.py
 │   ├── test_senti_state.py
+│   ├── test_settings.py
 │   ├── test_sound.py
 │   ├── test_system_monitor.py
 │   └── test_temperature.py
