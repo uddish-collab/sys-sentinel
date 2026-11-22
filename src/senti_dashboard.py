@@ -4,7 +4,7 @@ Provides isolated, dedicated deep-dive panels for CPU, RAM, Storage,
 Thermals, GPU, Network, System, and Settings without mixing them.
 """
 
-from typing import Optional, Dict, Any, List, Callable, Tuple
+from typing import Optional, Dict, Any, List, Callable
 from collections import deque
 import sys
 import math
@@ -13,12 +13,10 @@ from PySide6.QtCore import (
     Qt,
     QRectF,
     QPointF,
-    QTimer,
     Property,
     QPropertyAnimation,
     QEasingCurve,
     Signal,
-    QUrl,
 )
 from PySide6.QtGui import (
     QColor,
@@ -28,8 +26,6 @@ from PySide6.QtGui import (
     QPainterPath,
     QLinearGradient,
     QFont,
-    QDesktopServices,
-    QGuiApplication,
 )
 from PySide6.QtWidgets import (
     QApplication,
@@ -41,17 +37,14 @@ from PySide6.QtWidgets import (
     QPushButton,
     QFrame,
     QTabWidget,
-    QTabBar,
     QScrollArea,
-    QColorDialog,
     QGraphicsOpacityEffect,
     QLineEdit,
     QTextEdit,
-    QMessageBox,
 )
 
 from senti_widgets import SmoothBar
-from senti_settings import SentiSettings, PRESET_THEMES, DEFAULT_COLORS
+from senti_settings import SentiSettings
 try:
     from src.senti_brain import SentiBrain
 except ImportError:

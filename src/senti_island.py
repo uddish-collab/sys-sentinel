@@ -29,7 +29,6 @@ from PySide6.QtGui import (
     QPen,
     QBrush,
     QFont,
-    QPainterPath,
     QLinearGradient,
     QRadialGradient,
 )

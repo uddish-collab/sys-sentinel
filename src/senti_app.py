@@ -5,9 +5,7 @@ minimalist black glass top island, startup greeting wave, and multi-click gestur
 """
 
 import datetime
-import math
 import os
-import random
 import signal
 import sys
 import tempfile
@@ -93,11 +91,9 @@ from senti_state import (
 )
 from senti_settings import (
     SentiSettings,
-    get_safe_initial_pos,
     get_default_island_pos,
     register_windows_app,
     unregister_windows_app,
-    is_windows_app_registered,
 )
 from senti_sound import play_sound, play_pill_hover, play_pill_tick, ensure_sound_files
 from senti_mascot import SentiMascot, render_mascot_image

@@ -8,7 +8,7 @@ import sys
 # Ensure QApplication exists for widget testing
 app = QApplication.instance() or QApplication(sys.argv)
 
-from src.senti_app import CompanionWindow, SentiApp
+from src.senti_app import SentiApp
 from src.senti_island import TopIslandWindow
 
 

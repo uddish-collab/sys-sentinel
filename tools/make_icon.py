@@ -4,7 +4,6 @@ Renders the full-bleed high-contrast Senti mascot face for crystal-clear visibil
 across all Windows Explorer view modes (details, list, tiles, large icons).
 """
 
-import math
 import os
 import struct
 import sys
@@ -16,7 +15,7 @@ if SRC_DIR not in sys.path:
 
 from PySide6.QtCore import Qt, QPointF, QRectF, QBuffer, QIODevice
 from PySide6.QtGui import (
-    QImage, QPainter, QColor, QPen, QBrush, QLinearGradient, QRadialGradient, QPainterPath
+    QImage, QPainter, QColor, QPen, QLinearGradient, QRadialGradient, QPainterPath
 )
 from PySide6.QtWidgets import QApplication
 

@@ -4,7 +4,7 @@ No Qt dependencies in this module so it can be thoroughly unit-tested.
 """
 
 from collections import deque
-from typing import Optional, List, Tuple, Dict, Any
+from typing import Optional, List, Tuple
 import time
 
 

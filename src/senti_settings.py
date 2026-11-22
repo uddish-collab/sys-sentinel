@@ -2,7 +2,7 @@
 
 import sys
 import os
-from typing import Dict, Any, Optional
+from typing import Dict, Optional
 from PySide6.QtCore import QSettings, QPoint
 from PySide6.QtGui import QColor, QGuiApplication
 

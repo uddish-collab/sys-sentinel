@@ -19,11 +19,9 @@ from PySide6.QtGui import (
     QColor,
     QPainter,
     QPen,
-    QBrush,
     QLinearGradient,
     QRadialGradient,
     QPainterPath,
-    QPixmap,
     QImage,
 )
 from PySide6.QtWidgets import QWidget

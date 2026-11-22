@@ -1,6 +1,5 @@
 """Unit tests for settings management and Windows app registration."""
 
-import os
 import unittest
 from PySide6.QtGui import QColor
 
