@@ -117,27 +117,61 @@ def render_app_icon(size: int) -> QImage:
     return img
 
 
-def create_png_bytes(size: int) -> bytes:
-    """Render the application icon at the given size and encode as transparent PNG bytes."""
+def create_icon_frame_bytes(size: int) -> bytes:
+    """Render the application icon and encode as standard Windows DIB (<256) or PNG (>=256)."""
     img = render_app_icon(size=size)
-    buf = QBuffer()
-    buf.open(QIODevice.OpenModeFlag.WriteOnly)
-    img.save(buf, "PNG")
-    png_bytes = bytes(buf.data())
-    buf.close()
-    return png_bytes
+    if size >= 256:
+        buf = QBuffer()
+        buf.open(QIODevice.OpenModeFlag.WriteOnly)
+        img.save(buf, "PNG")
+        png_bytes = bytes(buf.data())
+        buf.close()
+        return png_bytes
+
+    # Convert to ARGB32 format for direct pixel reading
+    img_argb = img.convertToFormat(QImage.Format.Format_ARGB32)
+    w = size
+    h = size
+
+    # Build 32-bit BGRA XOR data bottom-to-top
+    xor_bytes = bytearray()
+    for y in reversed(range(h)):
+        for x in range(w):
+            c = img_argb.pixelColor(x, y)
+            xor_bytes.extend([c.blue(), c.green(), c.red(), c.alpha()])
+
+    # Build 1bpp AND mask (all zeros for 32-bit alpha icon, padded to 32-bit scanline)
+    and_row_bytes = ((w + 31) // 32) * 4
+    and_bytes = bytes(and_row_bytes * h)
+
+    # BITMAPINFOHEADER (biHeight is double height: XOR + AND masks)
+    bih = struct.pack(
+        "<IIIHHIIIIII",
+        40,                 # biSize
+        w,                  # biWidth
+        h * 2,              # biHeight
+        1,                  # biPlanes
+        32,                 # biBitCount
+        0,                  # biCompression (BI_RGB)
+        len(xor_bytes),     # biSizeImage
+        0,                  # biXPelsPerMeter
+        0,                  # biYPelsPerMeter
+        0,                  # biClrUsed
+        0,                  # biClrImportant
+    )
+    return bih + bytes(xor_bytes) + and_bytes
 
 
 def build_ico(sizes, output_path: str):
-    """Pack multi-size PNGs into a standard Windows ICO file."""
+    """Pack standard DIB (<256) and PNG (>=256) frames into a compliant Windows ICO file."""
     app = QApplication.instance()
     if app is None:
         app = QApplication(sys.argv)
 
     images_data = []
     for s in sizes:
-        png_data = create_png_bytes(s)
-        images_data.append((s, png_data))
+        frame_data = create_icon_frame_bytes(s)
+        images_data.append((s, frame_data))
 
     num_images = len(images_data)
     # Header: idReserved (2), idType (2 = 1 for icon), idCount (2)
@@ -174,7 +208,7 @@ def build_ico(sizes, output_path: str):
         for _, data in images_data:
             f.write(data)
 
-    print(f"Generated multi-size icon: {output_path} ({len(sizes)} sizes: {sizes})")
+    print(f"Generated multi-size compliant icon: {output_path} ({len(sizes)} sizes: {sizes})")
 
 
 if __name__ == "__main__":
