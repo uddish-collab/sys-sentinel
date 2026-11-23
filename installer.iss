@@ -1,5 +1,6 @@
 ; Script generated for Inno Setup 6
-; SYS-SENTINEL Desktop Companion Installer
+; SYS-SENTINEL: Professional Windows Desktop Application Installer
+; Developed by Uddish
 
 #define MyAppName "SYS-SENTINEL"
 #define MyAppVersion "1.0.0"
@@ -22,12 +23,26 @@ OutputDir=dist\installer
 OutputBaseFilename=SENTI-Setup-v1.0.0
 SetupIconFile=assets\senti.ico
 UninstallDisplayIcon={app}\{#MyAppExeName}
+UninstallDisplayName={#MyAppName} - Desktop Companion & Hardware Sentinel
 Compression=lzma2/ultra64
 SolidCompression=yes
 WizardStyle=modern
-ArchitecturesInstallIn64BitMode=x64
+ArchitecturesInstallIn64BitMode=x64compatible
 DisableDirPage=no
 DisableProgramGroupPage=yes
+PrivilegesRequired=lowest
+PrivilegesRequiredOverridesAllowed=dialog
+CloseApplications=yes
+RestartApplications=no
+SetupLogging=yes
+
+; Version and metadata information embedded in Setup binary
+VersionInfoVersion={#MyAppVersion}.0
+VersionInfoCompany={#MyAppPublisher}
+VersionInfoDescription=SYS-SENTINEL Windows Setup Wizard
+VersionInfoCopyright=Copyright (C) 2026 {#MyAppPublisher}. All rights reserved.
+VersionInfoProductName={#MyAppName}
+VersionInfoProductVersion={#MyAppVersion}
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"

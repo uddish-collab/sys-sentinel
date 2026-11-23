@@ -460,12 +460,14 @@ class SentiDashboardWindow(QWidget):
         settings: Optional[Any] = None,
         on_colors_changed: Optional[Callable[[], None]] = None,
         on_sound_toggled: Optional[Callable[[bool], None]] = None,
+        on_check_updates: Optional[Callable[[], None]] = None,
         parent: Optional[QWidget] = None,
     ):
         super().__init__(parent)
         self.settings = settings or SentiSettings()
         self.on_colors_changed = on_colors_changed
         self.on_sound_toggled = on_sound_toggled
+        self.on_check_updates = on_check_updates
 
         self.setWindowTitle("Senti — System Telemetry")
         self.setObjectName("dashboardRoot")
@@ -1284,6 +1286,35 @@ class SentiDashboardWindow(QWidget):
         """)
         btn_instructions.clicked.connect(self.toggle_instructions_drawer)
         c2_hdr_row.addWidget(btn_instructions)
+
+        btn_update = QPushButton("●  UPDATES")
+        btn_update.setFixedHeight(20)
+        btn_update.setCursor(Qt.CursorShape.PointingHandCursor)
+        btn_update.setStyleSheet("""
+            QPushButton {
+                background: #0c0e14;
+                color: #64748b;
+                font-size: 9px;
+                font-weight: 700;
+                letter-spacing: 0.6px;
+                border: 1px solid #1a202c;
+                border-radius: 3px;
+                padding: 0px 8px;
+            }
+            QPushButton:hover {
+                background: #111722;
+                color: #38bdf8;
+                border: 1px solid #0284c7;
+            }
+            QPushButton:pressed {
+                background: #090d14;
+                color: #0284c7;
+            }
+        """)
+        if self.on_check_updates:
+            btn_update.clicked.connect(self.on_check_updates)
+        c2_hdr_row.addWidget(btn_update)
+
         c2_lay.addLayout(c2_hdr_row)
 
         # -------------------------------------------------------------

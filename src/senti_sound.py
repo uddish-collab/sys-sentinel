@@ -345,8 +345,16 @@ class PolyphonicSoundEngine:
                 voice = voices[idx]
                 self._voice_indices[name] = (idx + 1) % len(voices)
                 voice.setVolume(1.0)  # Maximum volume
-                voice.play()
-                return
+                try:
+                    # Check if voice encountered a device error
+                    if hasattr(voice, "status") and hasattr(QSoundEffect, "Status"):
+                        if voice.status() == QSoundEffect.Status.Error:
+                            self._play_threaded_fallback(actual)
+                            return
+                    voice.play()
+                    return
+                except Exception:
+                    pass
 
         # 2. Resilient Fallback: Threaded background winsound (never blocks main thread)
         self._play_threaded_fallback(actual)

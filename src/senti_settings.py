@@ -78,7 +78,7 @@ class SentiSettings:
         return False
 
     def is_sound_enabled(self) -> bool:
-        val = self._settings.value("sound/enabled", False)
+        val = self._settings.value("sound/enabled", True)
         if isinstance(val, bool):
             return val
         return str(val).lower() in ("true", "1", "yes")

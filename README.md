@@ -27,7 +27,8 @@
 - **5 Expressive Reaction States**: Single-tap funny emotional reactions (Shocked, Annoyed, Wink, Loved, Dizzy) with mood contour glows, procedural physics VFX (lightning, smoke, hearts, stars), and polyphonic acoustic feedback.
 - **Deep 8-Panel Diagnostic Matrix**: Dedicated telemetry dashboards for CPU (per-core load and live sparkline graphing), RAM, GPU, Network, Storage, Thermals, Battery, and Workstation Settings.
 - **Senti Comms AI Terminal**: Natural-language telemetry interrogation console for instant diagnostic evaluations and creator lore.
-- **Zero-Lag Portable Architecture**: Standalone single-file executable (`SENTI.exe`) with zero unzipping, extraction delays, or installation required.
+- **In-App 1-Click Automatic Updates**: Senti quietly checks for new releases on GitHub and auto-updates seamlessly with a single click — no manual downloads required.
+- **Universal Polyphonic Audio**: Polyphonic glass marimba audio and expressive character reactions enabled out-of-the-box across all Windows machines.
 
 ---
 
@@ -62,20 +63,15 @@
 
 ---
 
-## ⚡ Quick Download & Installation
+## ⚡ Download & Setup
 
-SYS-SENTINEL offers an official Windows Setup Wizard as well as a standalone portable binary (no Python or Git required):
+Download the official Windows Setup Installer (no Python or Git required):
 
-### 💿 Option 1: Windows Setup Wizard (Recommended)
-Download the full Windows installer with standard setup steps, desktop shortcuts, and uninstaller support:
+### 💿 Windows Setup Wizard
 1. Download **[SENTI-Setup-v1.0.0.exe](https://github.com/uddish-collab/sys-sentinel/releases/download/v1.0.0/SENTI-Setup-v1.0.0.exe)**.
-2. Run the installer, click **Next**, choose your install folder and shortcut checkboxes, and click **Install**.
-3. Fully integrated with Windows Start Menu, desktop, and Windows **Apps & Features** uninstaller.
-
-### ⚡ Option 2: Standalone Portable Executable
-For users who prefer zero installation:
-1. Download **[SENTI.exe](https://github.com/uddish-collab/sys-sentinel/releases/download/v1.0.0/SENTI.exe)**.
-2. Double-click **`SENTI.exe`** to launch instantly anywhere on your system.
+2. Run the installer, select your preferred options (desktop icon, start on boot), and click **Install**.
+3. Senti is instantly integrated into your Windows Start Menu, desktop, and system tray.
+4. **Seamless Automatic Updates**: Future updates are installed with 1-click directly from inside Senti — no manual downloading needed!
 
 ---
 
@@ -134,7 +130,7 @@ SYS-SENTINEL includes comprehensive unit test suites covering telemetry polling,
 ```bash
 py -m unittest discover -s tests -v
 ```
-*Current test pass rate: 50 / 50 tests passing.*
+*Current test pass rate: 53 / 53 tests passing.*
 
 ---
 
@@ -144,6 +140,7 @@ py -m unittest discover -s tests -v
 sys-sentinel/
 ├── src/
 │   ├── senti_app.py         # Application entry point, window coordinator & system tray
+│   ├── senti_updater.py     # Seamless 1-click in-app automatic updater
 │   ├── senti_brain.py       # Senti Comms natural-language query evaluation engine
 │   ├── senti_mascot.py      # Animated desktop pet widget, VFX particle engine & reactive eye physics
 │   ├── senti_island.py      # Top Dynamic Island HUD overlay & 8-pill telemetry matrix
@@ -153,7 +150,7 @@ sys-sentinel/
 │   ├── senti_settings.py    # Persistent app settings, Windows registry autostart & theme matrix
 │   ├── senti_state.py       # Centralized telemetry store & companion mood state
 │   └── system_monitor.py    # Asynchronous background hardware metrics & thermal daemons
-├── tests/                   # Comprehensive test coverage (50 tests across 9 suites)
+├── tests/                   # Comprehensive test coverage (53 tests across 10 suites)
 │   ├── test_companion.py
 │   ├── test_dashboard.py
 │   ├── test_pill_toggle.py
@@ -162,7 +159,8 @@ sys-sentinel/
 │   ├── test_settings.py
 │   ├── test_sound.py
 │   ├── test_system_monitor.py
-│   └── test_temperature.py
+│   ├── test_temperature.py
+│   └── test_updater.py
 ├── assets/                  # High-resolution mascot icons and synthesized audio cues
 ├── screenshots/             # Visual previews of Island HUD, Dashboards, and VFX
 ├── SENTI.spec               # Optimized PyInstaller distribution specification

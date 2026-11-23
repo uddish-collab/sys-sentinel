@@ -99,6 +99,7 @@ from senti_sound import play_sound, play_pill_hover, play_pill_tick, ensure_soun
 from senti_mascot import SentiMascot, render_mascot_image
 from senti_dashboard import SentiDashboardWindow
 from senti_island import TopIslandWindow, TAB_CANONICAL, PILL_HIT_INDEX
+from senti_updater import UpdateWorker, UpdateDialog
 
 NORMAL_SIZE = 80      # Senti companion size (leaves room for aura & waving glove)
 DOCKED_SIZE = 80      # Nests in Card 1 with center cx: 78, cy: 92
@@ -533,6 +534,7 @@ class SentiApp:
             settings=self.settings,
             on_colors_changed=self.on_palette_changed,
             on_sound_toggled=self.on_sound_toggled,
+            on_check_updates=lambda: self.check_for_updates(manual=True),
         )
         self.dashboard.closed.connect(self._on_dashboard_closed)
 
@@ -721,6 +723,26 @@ class SentiApp:
         del enabled
         self.island.update()
 
+    def check_for_updates(self, manual: bool = False):
+        """Asynchronously check GitHub for new releases."""
+        worker = UpdateWorker(__version__)
+        
+        def _on_finished(info):
+            self._on_update_result(info, manual)
+
+        worker.check_finished.connect(_on_finished)
+        self._active_update_worker = worker
+        threading.Thread(target=worker.run_check, daemon=True).start()
+
+    def _on_update_result(self, update_info: Optional[Dict[str, Any]], manual: bool):
+        if update_info:
+            dialog = UpdateDialog(update_info, __version__, parent=None)
+            dialog.exec()
+        elif manual:
+            from senti_updater import UpToDateDialog
+            dialog = UpToDateDialog(__version__, parent=None)
+            dialog.exec()
+
     def play(self, sound_name: str):
         play_sound(sound_name, enabled=self.settings.is_sound_enabled())
 
@@ -836,6 +858,9 @@ class SentiApp:
 
         # Allow Senti ~900ms to greet before the island appears
         QTimer.singleShot(900, _bring_in_island)
+
+        # Check for updates quietly in background 4 seconds after startup
+        QTimer.singleShot(4000, lambda: self.check_for_updates(manual=False))
 
     def quit_app(self):
         """Clean shutdown: stops polling, hides tray, persists coordinates, and exits."""
